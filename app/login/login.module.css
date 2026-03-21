@@ -1,0 +1,335 @@
+/* ===== Split-Screen Login Layout ===== */
+
+.page {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 100vh;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+/* ---------- LEFT PANEL ---------- */
+
+.leftPanel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #0d2818 0%, #1a4a32 40%, #246344 80%, #2d7a52 100%);
+  overflow: hidden;
+  padding: 3rem;
+}
+
+/* animated floating particles */
+.particle {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  animation: floatUp 8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.particle:nth-child(1)  { width: 6px;  height: 6px;  left: 10%; animation-duration: 7s;  animation-delay: 0s;   }
+.particle:nth-child(2)  { width: 10px; height: 10px; left: 25%; animation-duration: 9s;  animation-delay: 1s;   }
+.particle:nth-child(3)  { width: 4px;  height: 4px;  left: 40%; animation-duration: 6s;  animation-delay: 2s;   }
+.particle:nth-child(4)  { width: 8px;  height: 8px;  left: 55%; animation-duration: 10s; animation-delay: 0.5s; }
+.particle:nth-child(5)  { width: 5px;  height: 5px;  left: 70%; animation-duration: 8s;  animation-delay: 3s;   }
+.particle:nth-child(6)  { width: 12px; height: 12px; left: 85%; animation-duration: 11s; animation-delay: 1.5s; }
+.particle:nth-child(7)  { width: 7px;  height: 7px;  left: 15%; animation-duration: 7.5s; animation-delay: 4s;  }
+.particle:nth-child(8)  { width: 9px;  height: 9px;  left: 60%; animation-duration: 9.5s; animation-delay: 2.5s; }
+.particle:nth-child(9)  { width: 4px;  height: 4px;  left: 35%; animation-duration: 6.5s; animation-delay: 5s;  }
+.particle:nth-child(10) { width: 11px; height: 11px; left: 80%; animation-duration: 10.5s; animation-delay: 0.8s;}
+.particle:nth-child(11) { width: 6px;  height: 6px;  left: 48%; animation-duration: 8.5s; animation-delay: 3.5s; }
+.particle:nth-child(12) { width: 8px;  height: 8px;  left: 20%; animation-duration: 7s;  animation-delay: 1.8s; }
+
+@keyframes floatUp {
+  0% {
+    transform: translateY(100vh) scale(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-20vh) scale(1);
+    opacity: 0;
+  }
+}
+
+/* glowing ring behind the logo */
+.glowRing {
+  position: absolute;
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.06);
+  animation: pulseRing 4s ease-in-out infinite;
+}
+
+.glowRing2 {
+  position: absolute;
+  width: 360px;
+  height: 360px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.04);
+  animation: pulseRing 4s ease-in-out infinite 1s;
+}
+
+@keyframes pulseRing {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50%      { transform: scale(1.08); opacity: 1; }
+}
+
+/* logo itself */
+.logoContainer {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.logo {
+  width: 220px;
+  height: auto;
+  filter: brightness(0) invert(1);
+  animation: logoFloat 5s ease-in-out infinite;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+@keyframes logoFloat {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-10px); }
+}
+
+.tagline {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 1rem;
+  font-weight: 400;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+/* decorative diagonal line */
+.diagonalLine {
+  position: absolute;
+  width: 200%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+  transform: rotate(-35deg);
+  top: 30%;
+  left: -50%;
+}
+
+.diagonalLine2 {
+  position: absolute;
+  width: 200%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent);
+  transform: rotate(-35deg);
+  top: 65%;
+  left: -50%;
+}
+
+/* ---------- RIGHT PANEL ---------- */
+
+.rightPanel {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
+  background: #ffffff;
+}
+
+/* "Are you an organization?" button — top right */
+.orgButton {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  padding: 8px 18px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #246344;
+  background: rgba(36, 99, 68, 0.08);
+  border: 1.5px solid #246344;
+  border-radius: 20px;
+  text-decoration: none;
+  transition: background 0.2s, color 0.2s;
+}
+
+.orgButton:hover {
+  background: #246344;
+  color: #ffffff;
+}
+
+.card {
+  width: 100%;
+  max-width: 400px;
+}
+
+.title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 6px;
+}
+
+.subtitle {
+  font-size: 0.9rem;
+  color: #6b7280;
+  margin: 0 0 2rem;
+}
+
+/* error alert */
+.errorBox {
+  background-color: #fef2f2;
+  border: 1px solid #fca5a5;
+  color: #b91c1c;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+/* form */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.input {
+  padding: 11px 14px;
+  font-size: 0.9rem;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  outline: none;
+  transition: border-color 0.25s, box-shadow 0.25s;
+  color: #111827;
+  background: #f9fafb;
+}
+
+.input:focus {
+  border-color: #246344;
+  box-shadow: 0 0 0 3px rgba(36, 99, 68, 0.12);
+  background: #ffffff;
+}
+
+.button {
+  margin-top: 6px;
+  padding: 12px;
+  background-color: #246344;
+  color: #ffffff;
+  font-size: 0.95rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.15s;
+  width: 100%;
+}
+
+.button:hover {
+  background-color: #1a4a32;
+  transform: translateY(-1px);
+}
+
+.button:active {
+  transform: translateY(0);
+}
+
+.button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* forgot password row */
+.forgotRow {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -4px;
+}
+
+.forgotLink {
+  font-size: 0.8rem;
+  color: #246344;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.forgotLink:hover {
+  color: #1a4a32;
+  text-decoration: underline;
+}
+
+.registerText {
+  text-align: center;
+  font-size: 0.82rem;
+  color: #6b7280;
+  margin-top: 1.5rem;
+}
+
+.registerLink {
+  color: #246344;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.registerLink:hover {
+  color: #1a4a32;
+  text-decoration: underline;
+}
+
+/* ---------- RESPONSIVE ---------- */
+
+@media (max-width: 768px) {
+  .page {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .leftPanel {
+    padding: 2.5rem 1.5rem;
+    min-height: 220px;
+  }
+
+  .logo {
+    width: 150px;
+  }
+
+  .glowRing {
+    width: 180px;
+    height: 180px;
+  }
+
+  .glowRing2 {
+    width: 240px;
+    height: 240px;
+  }
+
+  .rightPanel {
+    padding: 2rem 1.5rem;
+  }
+}

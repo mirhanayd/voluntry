@@ -2,3 +2,6 @@ syntax: glob
 node_modules/
 .next/
 .env
+.env.local
+.gitignore
+.git/
