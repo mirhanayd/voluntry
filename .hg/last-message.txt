@@ -1,1 +1,1 @@
-feat: login and register pages
+feat: event cards grid with loading skeleton and empty states

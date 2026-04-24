@@ -1,18 +1,23 @@
 "use client";
 
-import { useState } from "react";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/lib/firebase";
-import { useRouter } from "next/navigation";
+import { useState, Suspense } from "react";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import styles from "./login.module.css";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const reason = searchParams.get("reason");
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPendingPopup, setShowPendingPopup] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,8 +25,34 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      router.push("/student/dashboard");
+      const { user } = await signInWithEmailAndPassword(auth, email, password);
+
+      // Check user status in Firestore
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+
+      if (!userDoc.exists()) {
+        await signOut(auth);
+        setError("Account not found. Please register first.");
+        return;
+      }
+
+      const userData = userDoc.data();
+
+      if (userData.status === "pending") {
+        // Sign out immediately — not approved yet
+        await signOut(auth);
+        setShowPendingPopup(true);
+        return;
+      }
+
+      // Approved — redirect based on role
+      if (userData.role === "admin") {
+        router.push("/admin/dashboard");
+      } else if (userData.role === "organizer") {
+        router.push("/organizer/dashboard");
+      } else {
+        router.push("/student/dashboard");
+      }
     } catch (err: any) {
       switch (err.code) {
         case "auth/user-not-found":
@@ -74,13 +105,20 @@ export default function LoginPage() {
       {/* ========== RIGHT PANEL — Login Form ========== */}
       <div className={styles.rightPanel}>
         {/* Organization link — top right */}
-        <Link href="/register" className={styles.orgButton}>
+        <Link href="/register/organization" className={styles.orgButton}>
           Are you an organization?
         </Link>
 
         <div className={styles.card}>
           <h1 className={styles.title}>Sign In</h1>
           <p className={styles.subtitle}>Welcome back to VolunTRY</p>
+
+          {/* Timeout Info */}
+          {reason === "timeout" && (
+            <div style={timeoutStyle}>
+              You were signed out due to inactivity.
+            </div>
+          )}
 
           {/* Error Alert */}
           {error && <div className={styles.errorBox}>{error}</div>}
@@ -132,8 +170,139 @@ export default function LoginPage() {
               Register
             </Link>
           </p>
+
+          <p style={{ textAlign: "center", fontSize: "12px", color: "#6b7280", marginTop: "8px" }}>
+            Are you an organization?{" "}
+            <Link
+              href="/register/organization"
+              style={{ color: "#6b7280", textDecoration: "underline", fontWeight: 500 }}
+            >
+              Register here
+            </Link>
+          </p>
         </div>
       </div>
+
+      {/* ── Pending Approval Popup ── */}
+      {showPendingPopup && (
+        <div style={popupStyles.overlay}>
+          <div style={popupStyles.popup}>
+            <div style={popupStyles.icon}>
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#246344" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+            </div>
+
+            <h2 style={popupStyles.title}>Account Pending</h2>
+
+            <p style={popupStyles.text}>
+              Your account is still on the Ministry&apos;s{" "}
+              <span style={popupStyles.highlight}>pending approval</span> list.
+            </p>
+
+            <p style={popupStyles.subtext}>
+              An administrator has not yet approved your registration.
+              Please check back later.
+            </p>
+
+            <button
+              onClick={() => setShowPendingPopup(false)}
+              style={popupStyles.button}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#1a4a32")}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#246344")}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+/* ── Styles ────────────────────────────────────────────────────────────────── */
+
+const timeoutStyle: React.CSSProperties = {
+  backgroundColor: "#fffbeb",
+  border: "1px solid #fcd34d",
+  color: "#92400e",
+  borderRadius: "8px",
+  padding: "10px 14px",
+  fontSize: "14px",
+  marginBottom: "16px",
+  textAlign: "center",
+};
+
+const popupStyles: { [key: string]: React.CSSProperties } = {
+  overlay: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backdropFilter: "blur(4px)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 9999,
+  },
+  popup: {
+    backgroundColor: "#ffffff",
+    borderRadius: "16px",
+    padding: "40px 36px",
+    maxWidth: "420px",
+    width: "90%",
+    textAlign: "center",
+    boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+  },
+  icon: {
+    marginBottom: "20px",
+  },
+  title: {
+    fontSize: "20px",
+    fontWeight: "700",
+    color: "#111827",
+    margin: "0 0 12px 0",
+  },
+  text: {
+    fontSize: "14px",
+    color: "#374151",
+    lineHeight: "1.6",
+    margin: "0 0 8px 0",
+  },
+  highlight: {
+    display: "inline-block",
+    backgroundColor: "#fef3c7",
+    color: "#92400e",
+    fontWeight: "700",
+    padding: "2px 8px",
+    borderRadius: "4px",
+  },
+  subtext: {
+    fontSize: "13px",
+    color: "#6b7280",
+    lineHeight: "1.5",
+    margin: "0 0 24px 0",
+  },
+  button: {
+    padding: "12px 32px",
+    backgroundColor: "#246344",
+    color: "#ffffff",
+    fontSize: "15px",
+    fontWeight: "600",
+    border: "none",
+    borderRadius: "8px",
+    cursor: "pointer",
+    transition: "background-color 0.2s",
+  },
+};

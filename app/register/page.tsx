@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import { createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { doc, setDoc, collection, getDocs, orderBy, query } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
@@ -192,7 +192,8 @@ export default function RegisterPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
 
   const [form, setForm] = useState({
-    fullName: "",
+    firstName: "",
+    lastName: "",
     email: "",
     password: "",
     confirmPassword: "",
@@ -205,20 +206,33 @@ export default function RegisterPage() {
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadingData, setLoadingData] = useState(true);
+  const [showPopup, setShowPopup] = useState(false);
 
   // Fetch universities and departments from Firestore
   useEffect(() => {
     const fetchData = async () => {
-      const [uniSnap, deptSnap] = await Promise.all([
-        getDocs(query(collection(db, "universities"))),
-        getDocs(query(collection(db, "departments"))),
-      ]);
-      const unis = uniSnap.docs.map((d) => ({ id: d.id, ...d.data() } as University));
-      const depts = deptSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Department));
-      unis.sort((a, b) => a.name.localeCompare(b.name));
-      depts.sort((a, b) => a.name.localeCompare(b.name));
-      setUniversities(unis);
-      setDepartments(depts);
+      try {
+        const [uniSnap, deptSnap] = await Promise.all([
+          getDocs(query(collection(db, "universities"))),
+          getDocs(query(collection(db, "departments"))),
+        ]);
+        const unis = uniSnap.docs.map((d) => ({ id: d.id, ...d.data() } as University));
+        const depts = deptSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Department));
+        unis.sort((a, b) => a.name.localeCompare(b.name));
+        depts.sort((a, b) => a.name.localeCompare(b.name));
+        setUniversities(unis);
+        setDepartments(depts);
+      } catch (err: any) {
+        console.error("Firestore fetch error:", err);
+        setError(
+          err?.code === "permission-denied"
+            ? "Could not load universities/departments — Firestore permissions not set. Contact an admin."
+            : "Failed to load form data. Please refresh the page."
+        );
+      } finally {
+        setLoadingData(false);
+      }
     };
     fetchData();
   }, []);
@@ -228,7 +242,8 @@ export default function RegisterPage() {
   };
 
   const validate = () => {
-    if (!form.fullName.trim()) return "Please enter your full name.";
+    if (!form.firstName.trim()) return "Please enter your first name.";
+    if (!form.lastName.trim()) return "Please enter your last name.";
     if (!form.email.trim()) return "Please enter your email.";
     if (form.password.length < 6) return "Password must be at least 6 characters.";
     if (form.password !== form.confirmPassword) return "Passwords do not match.";
@@ -259,7 +274,9 @@ export default function RegisterPage() {
       // Write user document to Firestore
       await setDoc(doc(db, "users", user.uid), {
         uid: user.uid,
-        fullName: form.fullName.trim(),
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        fullName: `${form.firstName.trim()} ${form.lastName.trim()}`,
         email: form.email.trim(),
         role: "student",
         status: "pending",
@@ -272,7 +289,9 @@ export default function RegisterPage() {
         createdAt: new Date().toISOString(),
       });
 
-      router.push("/pending"); // A page that says "Your account is pending approval"
+      // Sign out immediately — user cannot use session until approved
+      await signOut(auth);
+      setShowPopup(true);
     } catch (err: any) {
       switch (err.code) {
         case "auth/email-already-in-use":
@@ -308,19 +327,34 @@ export default function RegisterPage() {
 
         <form onSubmit={handleRegister} style={styles.form}>
 
-          {/* Full Name */}
-          <div style={styles.fieldGroup}>
-            <label style={styles.label}>Full Name</label>
-            <input
-              type="text"
-              value={form.fullName}
-              onChange={(e) => handleChange("fullName", e.target.value)}
-              placeholder="John Doe"
-              required
-              style={styles.input}
-              onFocus={(e) => (e.target.style.borderColor = "#246344")}
-              onBlur={(e) => (e.target.style.borderColor = "#d1d5db")}
-            />
+          {/* Name row */}
+          <div style={styles.row}>
+            <div style={{ ...styles.fieldGroup, flex: 1 }}>
+              <label style={styles.label}>First Name</label>
+              <input
+                type="text"
+                value={form.firstName}
+                onChange={(e) => handleChange("firstName", e.target.value)}
+                placeholder="John"
+                required
+                style={styles.input}
+                onFocus={(e) => (e.target.style.borderColor = "#246344")}
+                onBlur={(e) => (e.target.style.borderColor = "#d1d5db")}
+              />
+            </div>
+            <div style={{ ...styles.fieldGroup, flex: 1 }}>
+              <label style={styles.label}>Last Name</label>
+              <input
+                type="text"
+                value={form.lastName}
+                onChange={(e) => handleChange("lastName", e.target.value)}
+                placeholder="Doe"
+                required
+                style={styles.input}
+                onFocus={(e) => (e.target.style.borderColor = "#246344")}
+                onBlur={(e) => (e.target.style.borderColor = "#d1d5db")}
+              />
+            </div>
           </div>
 
           {/* Email */}
@@ -438,6 +472,41 @@ export default function RegisterPage() {
           </Link>
         </p>
       </div>
+
+      {/* ── Pending Approval Popup ── */}
+      {showPopup && (
+        <div style={styles.overlay}>
+          <div style={styles.popup}>
+            {/* Icon */}
+            <div style={styles.popupIcon}>
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#246344" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+            </div>
+
+            <h2 style={styles.popupTitle}>Registration Successful!</h2>
+
+            <p style={styles.popupText}>
+              Your registration has been received. Your account has been added
+              to the Ministry&apos;s <span style={styles.pendingHighlight}>pending approval</span> list.
+            </p>
+
+            <p style={styles.popupSubtext}>
+              You will be able to sign in once an administrator reviews and approves your account.
+            </p>
+
+            <button
+              onClick={() => router.push("/login")}
+              style={styles.popupButton}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#1a4a32")}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#246344")}
+            >
+              Go to Login
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -592,5 +661,69 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: "13px",
     color: "#9ca3af",
     textAlign: "center",
+  },
+  // Popup styles
+  overlay: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backdropFilter: "blur(4px)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 9999,
+  },
+  popup: {
+    backgroundColor: "#ffffff",
+    borderRadius: "16px",
+    padding: "40px 36px",
+    maxWidth: "420px",
+    width: "90%",
+    textAlign: "center",
+    boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+    animation: "fadeIn 0.3s ease",
+  },
+  popupIcon: {
+    marginBottom: "20px",
+  },
+  popupTitle: {
+    fontSize: "20px",
+    fontWeight: "700",
+    color: "#111827",
+    margin: "0 0 12px 0",
+  },
+  popupText: {
+    fontSize: "14px",
+    color: "#374151",
+    lineHeight: "1.6",
+    margin: "0 0 8px 0",
+  },
+  pendingHighlight: {
+    display: "inline-block",
+    backgroundColor: "#fef3c7",
+    color: "#92400e",
+    fontWeight: "700",
+    padding: "2px 8px",
+    borderRadius: "4px",
+  },
+  popupSubtext: {
+    fontSize: "13px",
+    color: "#6b7280",
+    lineHeight: "1.5",
+    margin: "0 0 24px 0",
+  },
+  popupButton: {
+    padding: "12px 32px",
+    backgroundColor: "#246344",
+    color: "#ffffff",
+    fontSize: "15px",
+    fontWeight: "600",
+    border: "none",
+    borderRadius: "8px",
+    cursor: "pointer",
+    transition: "background-color 0.2s",
   },
 };

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Providers from "@/components/Providers";
 
 export const metadata: Metadata = {
   title: "VolunTRY - Connect Volunteers with Opportunities",
@@ -12,8 +13,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body style={{ margin: 0, padding: 0, fontFamily: "system-ui, -apple-system, sans-serif" }}>
-        {children}
+      <body suppressHydrationWarning style={{ margin: 0, padding: 0, fontFamily: "system-ui, -apple-system, sans-serif" }}>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
