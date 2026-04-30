@@ -5,3 +5,8 @@ node_modules/
 .env.local
 .gitignore
 .git/
+.firebase/
+.agents/
+.claude/
+tsconfig.tsbuildinfo
+docs/

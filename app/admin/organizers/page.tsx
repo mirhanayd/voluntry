@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   collection,
   getDocs,
@@ -11,7 +11,9 @@ import {
   setDoc,
   updateDoc,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
+import { useToast } from "@/components/Toast";
+import { useConfirm } from "@/components/ConfirmModal";
 
 interface OrgRow {
   uid: string;
@@ -43,9 +45,11 @@ export default function OrganizerManagementPage() {
   const [form, setForm] = useState({ ...emptyForm });
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
+  const { showToast } = useToast();
+  const confirm = useConfirm();
 
   // ── Fetch organizers ────────────────────────────────────────────────────
-  const fetchOrgs = async () => {
+  const fetchOrgs = useCallback(async () => {
     setLoading(true);
     try {
       const snap = await getDocs(
@@ -60,14 +64,15 @@ export default function OrganizerManagementPage() {
       setOrgs(rows);
     } catch (err) {
       console.error("Failed to fetch organizers:", err);
+      showToast("Failed to fetch organizers.", "error");
     } finally {
       setLoading(false);
     }
-  };
+  }, [showToast]);
 
   useEffect(() => {
     fetchOrgs();
-  }, []);
+  }, [fetchOrgs]);
 
   // ── Open modal for Add / Edit ───────────────────────────────────────────
   const openAdd = () => {
@@ -94,6 +99,7 @@ export default function OrganizerManagementPage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError("");
+    const isEdit = Boolean(editingUid);
 
     if (
       !form.organizationName.trim() ||
@@ -123,9 +129,13 @@ export default function OrganizerManagementPage() {
         }
 
         // 1. Create Auth account via API route
+        const token = await auth.currentUser?.getIdToken();
         const res = await fetch("/api/admin/create-user", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
           body: JSON.stringify({
             email: form.email.trim(),
             password: form.password,
@@ -151,10 +161,13 @@ export default function OrganizerManagementPage() {
       }
 
       setModalOpen(false);
-      fetchOrgs();
-    } catch (err: any) {
+      await fetchOrgs();
+      showToast(isEdit ? "Organizer updated." : "Organizer created.", "success");
+    } catch (err: unknown) {
       console.error("Save failed:", err);
-      setFormError(err.message || "Operation failed.");
+      const message = err instanceof Error ? err.message : "Operation failed.";
+      setFormError(message);
+      showToast(message, "error");
     } finally {
       setSaving(false);
     }
@@ -162,19 +175,30 @@ export default function OrganizerManagementPage() {
 
   // ── Delete organizer ───────────────────────────────────────────────────
   const handleDelete = async (uid: string) => {
-    if (!confirm("Delete this organizer? The Auth account will be disabled."))
-      return;
+    const confirmed = await confirm({
+      title: "Delete Organizer",
+      message: "Delete this organizer? The Auth account will be disabled.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!confirmed) return;
     try {
       await deleteDoc(doc(db, "users", uid));
       // Disable auth account
+      const token = await auth.currentUser?.getIdToken();
       await fetch("/api/admin/delete-user", {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ uid }),
       });
       setOrgs((prev) => prev.filter((o) => o.uid !== uid));
+      showToast("Organizer deleted and auth disabled.", "warning");
     } catch (err) {
       console.error("Failed to delete organizer:", err);
+      showToast("Failed to delete organizer.", "error");
     }
   };
 

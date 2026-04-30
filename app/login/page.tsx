@@ -51,7 +51,7 @@ function LoginForm() {
       } else if (userData.role === "organizer") {
         router.push("/organizer/dashboard");
       } else {
-        router.push("/student/dashboard");
+        router.push("/student/feed");
       }
     } catch (err: any) {
       switch (err.code) {

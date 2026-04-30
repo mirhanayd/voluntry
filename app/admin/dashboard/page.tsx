@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import styles from "./dashboard.module.css";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { StatCard } from "@/components/ui/StatCard";
 
 interface DashboardStats {
   totalUsers: number | null;
@@ -58,19 +60,15 @@ export default function AdminDashboardPage() {
 
   return (
     <div className={styles.container}>
-      <h1 className={styles.heading}>Dashboard</h1>
-      <p className={styles.subheading}>Overview of your platform</p>
+      <PageHeader title="Dashboard" subtitle="Overview of your platform" />
 
       <div className={styles.grid}>
         {cards.map((card) => (
-          <div key={card.label} className={styles.card}>
-            <p className={styles.cardLabel}>{card.label}</p>
-            {card.value !== null ? (
-              <p className={styles.cardValue}>{card.value}</p>
-            ) : (
-              <p className={styles.loadingValue}>Loading...</p>
-            )}
-          </div>
+          <StatCard
+            key={card.label}
+            label={card.label}
+            value={card.value !== null ? card.value : "Loading..."}
+          />
         ))}
       </div>
     </div>

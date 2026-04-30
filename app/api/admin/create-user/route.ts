@@ -3,6 +3,17 @@ import { adminAuth } from "@/lib/firebaseAdmin";
 
 export async function POST(req: NextRequest) {
   try {
+    // ── Auth guard: verify Firebase ID token ──────────────────────────────
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    try {
+      await adminAuth.verifyIdToken(authHeader.split("Bearer ")[1]);
+    } catch {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { email, password, displayName } = await req.json();
 
     if (!email || !password) {

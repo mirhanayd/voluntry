@@ -24,7 +24,7 @@ export default function HomePage() {
         router.replace("/organizer/dashboard");
         break;
       case "student":
-        router.replace("/student/dashboard");
+        router.replace("/student/feed");
         break;
       default:
         router.replace("/login");

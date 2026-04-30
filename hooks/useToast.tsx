@@ -10,7 +10,7 @@ import React, {
 
 /* ── Types ─────────────────────────────────────────────────────────────────── */
 
-type ToastVariant = "success" | "error" | "info";
+type ToastVariant = "success" | "error" | "info" | "warning";
 
 interface Toast {
   id: number;
@@ -68,6 +68,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 ? "✓"
                 : t.variant === "error"
                 ? "✕"
+                : t.variant === "warning"
+                ? "!"
                 : "ℹ"}
             </span>
             {t.message}
@@ -127,6 +129,11 @@ const variantStyles: Record<ToastVariant, React.CSSProperties> = {
     background: "#fef2f2",
     color: "#b91c1c",
     border: "1px solid #fca5a5",
+  },
+  warning: {
+    background: "#fffbeb",
+    color: "#92400e",
+    border: "1px solid #fcd34d",
   },
   info: {
     background: "#eff6ff",

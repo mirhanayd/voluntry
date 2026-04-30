@@ -10,9 +10,12 @@ import {
   query,
   where,
   updateDoc,
+  addDoc,
 } from "firebase/firestore";
-import { db }                          from "@/lib/firebase";
+import { db, storage }                 from "@/lib/firebase";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { awardPoints, generateCertificate } from "@/lib/pointsHelper";
+import ImageUpload from "@/components/ImageUpload";
 
 /* ── Types ─────────────────────────────────────────────────────────────────── */
 
@@ -21,6 +24,7 @@ interface EventData {
   date: string;
   pointValue: number;
   status: string;
+  organizerName?: string;
 }
 
 interface ParticipantRow {
@@ -46,6 +50,11 @@ export default function ParticipantsPage() {
   const [processing, setProcessing]   = useState(false);
   const [successMsg, setSuccessMsg]   = useState("");
   const [errorMsg, setErrorMsg]       = useState("");
+
+  const [shareNote, setShareNote] = useState("");
+  const [sharePhotos, setSharePhotos] = useState<string[]>([]);
+  const [sharing, setSharing] = useState(false);
+  const [shared, setShared] = useState(false);
 
   /* ── Fetch event + participants ─────────────────────────────────────────── */
 
@@ -185,6 +194,37 @@ export default function ParticipantsPage() {
     }
   };
 
+  /* ── Share to Feed ──────────────────────────────────────────────────────── */
+
+  const handleShareToFeed = async () => {
+    if (!event) return;
+    setSharing(true);
+    setErrorMsg("");
+    try {
+      const confirmedCount = participants.filter((p) => p.attendanceConfirmed).length;
+      await addDoc(collection(db, "feed-posts"), {
+        type: "event_completed",
+        eventId,
+        eventTitle: event.title,
+        eventDate: event.date,
+        organizerName: event.organizerName || "Organizer",
+        pointValue: event.pointValue,
+        participantCount: confirmedCount,
+        completionNote: shareNote.trim(),
+        photoURLs: sharePhotos,
+        isPublic: true,
+        createdAt: new Date().toISOString(),
+      });
+      setShared(true);
+      setSuccessMsg("Successfully shared to the community feed!");
+    } catch (err) {
+      console.error(err);
+      setErrorMsg("Failed to share to feed.");
+    } finally {
+      setSharing(false);
+    }
+  };
+
   /* ── Render ─────────────────────────────────────────────────────────────── */
 
   if (loading) {
@@ -251,6 +291,46 @@ export default function ParticipantsPage() {
         <div style={infoBanner}>
           ℹ️ Attendance confirmation will be available once the event is marked as
           completed.
+        </div>
+      )}
+
+      {/* ── Share to Feed ── */}
+      {isCompleted && !shared && (
+        <div style={shareBox}>
+          <h3 style={shareTitle}>Share to Feed</h3>
+          <p style={shareSub}>Let students know how the event went! Add a note and some photos.</p>
+          
+          <textarea
+            style={shareTextarea}
+            placeholder="Write a short note about the event... (e.g. Thanks to all 50 volunteers who showed up today!)"
+            value={shareNote}
+            onChange={(e) => setShareNote(e.target.value)}
+          />
+
+          <div style={sharePhotosWrap}>
+            {sharePhotos.map((url, i) => (
+              <img key={i} src={url} alt={`Upload ${i}`} style={sharePhotoImg} />
+            ))}
+            
+            {sharePhotos.length < 3 && (
+              <div style={{ width: 100, height: 100 }}>
+                <ImageUpload
+                  shape="square"
+                  size={100}
+                  storagePath={`events/${eventId}/feed_${Date.now()}.jpg`}
+                  onUploadComplete={(url) => setSharePhotos((p) => [...p, url])}
+                />
+              </div>
+            )}
+          </div>
+
+          <button 
+            style={{...shareBtn, opacity: sharing ? 0.7 : 1}} 
+            disabled={sharing}
+            onClick={handleShareToFeed}
+          >
+            {sharing ? "Sharing..." : "Post to Feed"}
+          </button>
         </div>
       )}
 
@@ -457,4 +537,64 @@ const statusChip: React.CSSProperties = {
   fontSize: "0.76rem",
   fontWeight: 600,
   textTransform: "capitalize",
+};
+
+const shareBox: React.CSSProperties = {
+  background: "#fff",
+  border: "1px solid #e5e7eb",
+  borderRadius: 10,
+  padding: "1.5rem",
+  marginBottom: "1.5rem",
+};
+
+const shareTitle: React.CSSProperties = {
+  fontSize: "1.1rem",
+  fontWeight: 700,
+  color: "#111827",
+  margin: "0 0 4px",
+};
+
+const shareSub: React.CSSProperties = {
+  fontSize: "0.85rem",
+  color: "#6b7280",
+  margin: "0 0 1rem",
+};
+
+const shareTextarea: React.CSSProperties = {
+  width: "100%",
+  minHeight: 80,
+  padding: "10px 14px",
+  border: "1px solid #d1d5db",
+  borderRadius: 8,
+  fontSize: "0.9rem",
+  fontFamily: "inherit",
+  marginBottom: 12,
+  resize: "vertical",
+  boxSizing: "border-box",
+};
+
+const sharePhotosWrap: React.CSSProperties = {
+  display: "flex",
+  gap: 12,
+  marginBottom: 16,
+  flexWrap: "wrap",
+};
+
+const sharePhotoImg: React.CSSProperties = {
+  width: 100,
+  height: 100,
+  objectFit: "cover",
+  borderRadius: 10,
+  border: "1px solid #e5e7eb",
+};
+
+const shareBtn: React.CSSProperties = {
+  padding: "8px 18px",
+  fontSize: "0.85rem",
+  fontWeight: 600,
+  background: "#3b82f6",
+  color: "#fff",
+  border: "none",
+  borderRadius: 6,
+  cursor: "pointer",
 };

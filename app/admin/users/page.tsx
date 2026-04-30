@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   collection,
   getDocs,
@@ -12,6 +12,10 @@ import {
   setDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { useToast } from "@/components/Toast";
+import { useConfirm } from "@/components/ConfirmModal";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
 
 interface UserRow {
   uid: string;
@@ -31,6 +35,8 @@ export default function UserManagementPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "pending" | "approved">("all");
+  const { showToast } = useToast();
+  const confirm = useConfirm();
 
   // Add-user form
   const [showForm, setShowForm] = useState(false);
@@ -45,7 +51,7 @@ export default function UserManagementPage() {
   const [formError, setFormError] = useState("");
 
   // ── Fetch users (role === "student") ──────────────────────────────────────
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
       const snap = await getDocs(
@@ -65,36 +71,57 @@ export default function UserManagementPage() {
       setUsers(rows);
     } catch (err) {
       console.error("Failed to fetch users:", err);
+      showToast("Failed to fetch users.", "error");
     } finally {
       setLoading(false);
     }
-  };
+  }, [showToast]);
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [fetchUsers]);
 
   // ── Approve pending user ─────────────────────────────────────────────────
   const handleApprove = async (uid: string) => {
-    if (!confirm("Approve this user?")) return;
+    const confirmed = await confirm({
+      title: "Approve User",
+      message: "Approve this user? They will be able to access the system.",
+      confirmLabel: "Approve",
+    });
+    if (!confirmed) return;
     try {
       await updateDoc(doc(db, "users", uid), { status: "approved" });
       setUsers((prev) =>
         prev.map((u) => (u.uid === uid ? { ...u, status: "approved" } : u))
       );
+      showToast("User approved.", "success");
     } catch (err) {
       console.error("Failed to approve user:", err);
+      showToast("Failed to approve user.", "error");
     }
   };
 
   // ── Delete user doc from Firestore ───────────────────────────────────────
   const handleDelete = async (uid: string) => {
-    if (!confirm("Are you sure you want to delete this user?")) return;
+    const confirmed = await confirm({
+      title: "Delete User",
+      message: "Are you sure you want to delete this user? This action cannot be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!confirmed) return;
     try {
+      // TODO: Firebase Auth account deletion requires Admin SDK (server-side)
+      // Currently only removing Firestore document
       await deleteDoc(doc(db, "users", uid));
       setUsers((prev) => prev.filter((u) => u.uid !== uid));
+      showToast(
+        "User data removed. Note: Auth account requires manual deletion from Firebase Console.",
+        "warning"
+      );
     } catch (err) {
       console.error("Failed to delete user:", err);
+      showToast("Failed to delete user.", "error");
     }
   };
 
@@ -107,6 +134,7 @@ export default function UserManagementPage() {
       return;
     }
     try {
+      // WARNING: This user has no Firebase Auth account - they cannot log in until Auth account is created
       const id = crypto.randomUUID();
       await setDoc(doc(db, "users", id), {
         uid: id,
@@ -125,9 +153,11 @@ export default function UserManagementPage() {
       setForm({ firstName: "", lastName: "", email: "", universityName: "", departmentName: "", studentNumber: "" });
       setShowForm(false);
       fetchUsers();
+      showToast("User created.", "success");
     } catch (err) {
       console.error("Failed to add user:", err);
       setFormError("Failed to add user.");
+      showToast("Failed to add user.", "error");
     }
   };
 
@@ -221,7 +251,7 @@ export default function UserManagementPage() {
 
       {/* Table */}
       {loading ? (
-        <p style={{ color: "#9ca3af" }}>Loading...</p>
+        <LoadingSkeleton type="table" rows={5} />
       ) : visible.length === 0 ? (
         <p style={{ color: "#9ca3af" }}>No users found.</p>
       ) : (
@@ -247,18 +277,7 @@ export default function UserManagementPage() {
                   <td style={td}>{u.departmentName || "—"}</td>
                   <td style={td}>{u.studentNumber || "—"}</td>
                   <td style={td}>
-                    <span
-                      style={{
-                        ...statusChip,
-                        background:
-                          u.status === "approved"
-                            ? "rgba(36,99,68,0.1)"
-                            : "rgba(234,179,8,0.12)",
-                        color: u.status === "approved" ? "#246344" : "#92400e",
-                      }}
-                    >
-                      {u.status}
-                    </span>
+                    <StatusBadge status={u.status} />
                   </td>
                   <td style={td}>{u.points ?? 0}</td>
                   <td style={{ ...td, whiteSpace: "nowrap" }}>
@@ -420,14 +439,6 @@ const td: React.CSSProperties = {
   color: "#111827",
 };
 
-const statusChip: React.CSSProperties = {
-  display: "inline-block",
-  padding: "2px 10px",
-  borderRadius: 12,
-  fontSize: "0.76rem",
-  fontWeight: 600,
-  textTransform: "capitalize",
-};
 
 const approveBtn: React.CSSProperties = {
   padding: "4px 10px",

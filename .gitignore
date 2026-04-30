@@ -9,6 +9,9 @@
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
+.claude/
+.agents/
+
 
 # testing
 /coverage
@@ -42,3 +45,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# ide / other
+.claude/
+.hg/
+.hgignore
+
+# firebase
+.firebase/
+firebase-debug.log*

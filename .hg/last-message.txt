@@ -1,1 +1,1 @@
-feat: event cards grid with loading skeleton and empty states
+feat: mobile responsive sidebar with hamburger menu and overlay drawe

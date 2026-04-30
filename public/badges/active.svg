@@ -1,0 +1,26 @@
+<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="60" cy="60" r="56" fill="#dbeafe"/>
+  <!-- Border circle -->
+  <circle cx="60" cy="60" r="56" fill="none" stroke="#3b82f6" stroke-width="3"/>
+  <!-- Inner ring -->
+  <circle cx="60" cy="60" r="48" fill="none" stroke="#93c5fd" stroke-width="1" stroke-dasharray="4 3"/>
+  <!-- Flame icon -->
+  <path d="M60 20 C60 20 45 40 45 55 C45 63.28 51.72 70 60 70 C68.28 70 75 63.28 75 55 C75 40 60 20 60 20Z"
+        fill="#3b82f6" stroke="#2563eb" stroke-width="1.5"/>
+  <path d="M60 38 C60 38 52 50 52 57 C52 61.42 55.58 65 60 65 C64.42 65 68 61.42 68 57 C68 50 60 38 60 38Z"
+        fill="#93c5fd"/>
+  <!-- Small stars -->
+  <path d="M35 35 L37.5 41 L44 41 L39 44.5 L41 51 L35 47 L29 51 L31 44.5 L26 41 L32.5 41Z"
+        fill="#60a5fa" opacity="0.7"/>
+  <path d="M85 35 L87.5 41 L94 41 L89 44.5 L91 51 L85 47 L79 51 L81 44.5 L76 41 L82.5 41Z"
+        fill="#60a5fa" opacity="0.7"/>
+  <!-- Arc text path -->
+  <defs>
+    <path id="activeArc" d="M 25,85 A 50,50 0 0,0 95,85"/>
+  </defs>
+  <text font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#1e40af"
+        letter-spacing="3" text-anchor="middle">
+    <textPath href="#activeArc" startOffset="50%">ACTIVE</textPath>
+  </text>
+</svg>

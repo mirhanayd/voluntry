@@ -25,7 +25,7 @@ export default function ProtectedRoute({ allowedRoles, children }: ProtectedRout
   }, [user, role, loading, allowedRoles, router]);
 
   if (loading) {
-    return <div className="flex items-center justify-center min-h-screen">Yükleniyor...</div>;
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
 
   if (!user || !role || !allowedRoles.includes(role)) {

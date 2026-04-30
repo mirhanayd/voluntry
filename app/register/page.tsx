@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { doc, setDoc, collection, getDocs, orderBy, query } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { SearchableDropdown } from "@/components/ui/SearchableDropdown";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -19,168 +20,6 @@ interface Department {
   id: string;
   name: string;
   category: string;
-}
-
-// ─── SEARCHABLE DROPDOWN ──────────────────────────────────────────────────────
-
-function SearchableDropdown({
-  options,
-  value,
-  onChange,
-  placeholder,
-  displayKey,
-  groupKey,
-}: {
-  options: any[];
-  value: string;
-  onChange: (id: string, label: string) => void;
-  placeholder: string;
-  displayKey: string;
-  groupKey?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const [label, setLabel] = useState("");
-  const ref = useRef<HTMLDivElement>(null);
-
-  // Close on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-        setSearch("");
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  const filtered = options.filter((o) =>
-    o[displayKey].toLowerCase().includes(search.toLowerCase())
-  );
-
-  // Group by category if groupKey provided
-  const grouped: Record<string, any[]> = {};
-  if (groupKey) {
-    filtered.forEach((o) => {
-      const g = o[groupKey] || "Other";
-      if (!grouped[g]) grouped[g] = [];
-      grouped[g].push(o);
-    });
-  }
-
-  const handleSelect = (opt: any) => {
-    onChange(opt.id, opt[displayKey]);
-    setLabel(opt[displayKey]);
-    setOpen(false);
-    setSearch("");
-  };
-
-  return (
-    <div ref={ref} style={{ position: "relative" }}>
-      {/* Trigger */}
-      <div
-        onClick={() => setOpen(!open)}
-        style={{
-          ...styles.input,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          cursor: "pointer",
-          color: label ? "#111827" : "#9ca3af",
-          userSelect: "none",
-        }}
-      >
-        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {label || placeholder}
-        </span>
-        <span style={{ fontSize: "10px", marginLeft: "8px", flexShrink: 0 }}>
-          {open ? "▲" : "▼"}
-        </span>
-      </div>
-
-      {/* Dropdown */}
-      {open && (
-        <div style={styles.dropdown}>
-          {/* Search input */}
-          <div style={{ padding: "8px" }}>
-            <input
-              autoFocus
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search..."
-              style={{
-                ...styles.input,
-                margin: 0,
-                fontSize: "13px",
-                padding: "8px 10px",
-              }}
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>
-
-          {/* Options */}
-          <div style={{ maxHeight: "220px", overflowY: "auto" }}>
-            {filtered.length === 0 && (
-              <div style={styles.noResult}>No results found</div>
-            )}
-
-            {groupKey
-              ? Object.entries(grouped).map(([group, items]) => (
-                  <div key={group}>
-                    <div style={styles.groupLabel}>{group}</div>
-                    {items.map((opt) => (
-                      <div
-                        key={opt.id}
-                        onClick={() => handleSelect(opt)}
-                        style={{
-                          ...styles.option,
-                          backgroundColor:
-                            value === opt.id ? "#f0faf5" : "transparent",
-                          fontWeight: value === opt.id ? 600 : 400,
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.backgroundColor = "#f0faf5")
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.backgroundColor =
-                            value === opt.id ? "#f0faf5" : "transparent")
-                        }
-                      >
-                        {opt[displayKey]}
-                      </div>
-                    ))}
-                  </div>
-                ))
-              : filtered.map((opt) => (
-                  <div
-                    key={opt.id}
-                    onClick={() => handleSelect(opt)}
-                    style={{
-                      ...styles.option,
-                      backgroundColor:
-                        value === opt.id ? "#f0faf5" : "transparent",
-                      fontWeight: value === opt.id ? 600 : 400,
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.backgroundColor = "#f0faf5")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.backgroundColor =
-                        value === opt.id ? "#f0faf5" : "transparent")
-                    }
-                  >
-                    <span>{opt[displayKey]}</span>
-                    {opt.shortName && opt.shortName !== opt[displayKey] && (
-                      <span style={styles.badge}>{opt.shortName}</span>
-                    )}
-                  </div>
-                ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
 }
 
 // ─── REGISTER PAGE ────────────────────────────────────────────────────────────
@@ -317,7 +156,7 @@ export default function RegisterPage() {
 
         {/* Logo */}
         <div style={styles.logoWrapper}>
-          <img src="/logo.png" alt="VolunTRY" style={styles.logo} />
+          <img src="/logo_2.png" alt="VolunTRY" style={{ height: 52, objectFit: "contain" as const }} />
         </div>
 
         <h1 style={styles.title}>Create Account</h1>

@@ -1,0 +1,19 @@
+<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="60" cy="60" r="56" fill="#fef3c7"/>
+  <!-- Border circle -->
+  <circle cx="60" cy="60" r="56" fill="none" stroke="#f59e0b" stroke-width="3"/>
+  <!-- Inner ring -->
+  <circle cx="60" cy="60" r="48" fill="none" stroke="#fcd34d" stroke-width="1" stroke-dasharray="4 3"/>
+  <!-- Star icon -->
+  <path d="M60 22 L67.5 44.5 L91 44.5 L72 58 L79 80 L60 67 L41 80 L48 58 L29 44.5 L52.5 44.5 Z"
+        fill="#f59e0b" stroke="#d97706" stroke-width="1.5" stroke-linejoin="round"/>
+  <!-- Arc text path -->
+  <defs>
+    <path id="starterArc" d="M 25,85 A 50,50 0 0,0 95,85"/>
+  </defs>
+  <text font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#92400e"
+        letter-spacing="3" text-anchor="middle">
+    <textPath href="#starterArc" startOffset="50%">STARTER</textPath>
+  </text>
+</svg>

@@ -1,5 +1,6 @@
 import { initializeApp, getApps, cert, App } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
+import { getFirestore } from "firebase-admin/firestore";
 
 let app: App;
 
@@ -12,19 +13,15 @@ if (getApps().length === 0) {
     );
     app = initializeApp({ credential: cert(decoded) });
   } else {
-    console.warn(
-      "⚠️  FIREBASE_SERVICE_ACCOUNT_KEY is not set. " +
-        "Admin SDK features (createUser, etc.) will NOT work. " +
-        "Add the base64-encoded service account JSON to .env.local."
+    console.log(
+      "FIREBASE_SERVICE_ACCOUNT_KEY is not set. Using Application Default Credentials (ADC) for App Hosting / Cloud Run."
     );
-    // Fallback with explicit projectId so Firebase doesn't throw
-    // "Unable to detect a Project Id" — but auth operations will still fail.
-    app = initializeApp({
-      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-    });
+    // When running in Firebase App Hosting / Cloud Run, Firebase Admin automatically picks up ADC
+    app = initializeApp();
   }
 } else {
   app = getApps()[0];
 }
 
 export const adminAuth = getAuth(app);
+export const adminDb = getFirestore(app);

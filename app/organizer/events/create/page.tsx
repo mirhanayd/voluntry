@@ -1,23 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { collection, addDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/useToast";
 import { useRouter } from "next/navigation";
-
-const DEPARTMENT_OPTIONS = [
-  "All",
-  "Engineering",
-  "Health",
-  "Law & Social Sciences",
-  "Architecture & Design",
-  "Business & Economics",
-  "Education",
-  "Communication",
-  "Science",
-];
+import ImageUpload from "@/components/ImageUpload";
+import { DEPARTMENT_OPTIONS } from "@/constants/index";
 
 export default function CreateEventPage() {
   const { user, loading: authLoading } = useAuth();
@@ -34,10 +25,13 @@ export default function CreateEventPage() {
   });
 
   const [departments, setDepartments] = useState<string[]>([]);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [coverURL, setCoverURL] = useState<string>("");
+  const [galleryURLs, setGalleryURLs] = useState<string[]>([]);
+  const [uploadingGallery, setUploadingGallery] = useState<{ id: string }[]>([]);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const { showToast } = useToast();
 
   const handleChange = (
     field: string,
@@ -62,13 +56,8 @@ export default function CreateEventPage() {
     });
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setImageFile(file);
-      setImagePreview(URL.createObjectURL(file));
-    }
-  };
+  // storagePath uses a temp timestamp — image is already uploaded via ImageUpload
+  const [storagePath] = useState(() => `events/temp_${Date.now()}/cover.jpg`);
 
   const validate = (): string | null => {
     if (!form.title.trim()) return "Please enter an event title.";
@@ -83,7 +72,7 @@ export default function CreateEventPage() {
       return "Point value must be between 10 and 200.";
     if (departments.length === 0)
       return "Please select at least one department restriction.";
-    if (!imageFile) return "Please upload an event image.";
+    if (!coverURL) return "Please upload an event cover image.";
     return null;
   };
 
@@ -99,8 +88,8 @@ export default function CreateEventPage() {
 
     setLoading(true);
     try {
-      // 1. Create Firestore doc first to get the ID
-      const docRef = await addDoc(collection(db, "events"), {
+      // Create Firestore doc with coverURL (image already uploaded via ImageUpload)
+      await addDoc(collection(db, "events"), {
         title: form.title.trim(),
         description: form.description.trim(),
         date: form.date,
@@ -109,7 +98,8 @@ export default function CreateEventPage() {
         maxParticipants: parseInt(form.maxParticipants),
         pointValue: parseInt(form.pointValue),
         departmentRestriction: departments,
-        imageURL: "", // placeholder, updated after upload
+        coverURL,
+        galleryURLs,
         organizerId: user!.uid,
         organizerName: user!.displayName || "Organizer",
         status: "pending_approval",
@@ -117,17 +107,7 @@ export default function CreateEventPage() {
         currentParticipants: 0,
       });
 
-      // 2. Upload image to Firebase Storage
-      const storageRef = ref(storage, `events/${docRef.id}/cover`);
-      await uploadBytes(storageRef, imageFile!);
-      const downloadURL = await getDownloadURL(storageRef);
-
-      // 3. Update the doc with the image URL
-      const { updateDoc, doc } = await import("firebase/firestore");
-      await updateDoc(doc(db, "events", docRef.id), {
-        imageURL: downloadURL,
-      });
-
+      showToast("Event submitted for approval!", "success");
       router.push("/organizer/events");
     } catch (err: any) {
       console.error("Failed to create event:", err);
@@ -181,7 +161,7 @@ export default function CreateEventPage() {
 
           {/* Date + Time row */}
           <div style={row}>
-            <div style={{ ...fieldGroup, flex: 1 }}>
+            <div style={{ ...fieldGroup, flex: 1, minWidth: 140 }}>
               <label style={label}>Date</label>
               <input
                 type="date"
@@ -191,7 +171,7 @@ export default function CreateEventPage() {
                 style={input}
               />
             </div>
-            <div style={{ ...fieldGroup, flex: 1 }}>
+            <div style={{ ...fieldGroup, flex: 1, minWidth: 140 }}>
               <label style={label}>Time</label>
               <input
                 type="time"
@@ -218,7 +198,7 @@ export default function CreateEventPage() {
 
           {/* Max Participants + Point Value row */}
           <div style={row}>
-            <div style={{ ...fieldGroup, flex: 1 }}>
+            <div style={{ ...fieldGroup, flex: 1, minWidth: 140 }}>
               <label style={label}>Maximum Participants</label>
               <input
                 type="number"
@@ -232,7 +212,7 @@ export default function CreateEventPage() {
                 style={input}
               />
             </div>
-            <div style={{ ...fieldGroup, flex: 1 }}>
+            <div style={{ ...fieldGroup, flex: 1, minWidth: 140 }}>
               <label style={label}>Point Value (10–200)</label>
               <input
                 type="number"
@@ -269,32 +249,116 @@ export default function CreateEventPage() {
             </div>
           </div>
 
-          {/* Event Image */}
+          {/* Event Cover Image */}
           <div style={fieldGroup}>
-            <label style={label}>Event Image</label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleImageChange}
-              style={{
-                ...input,
-                padding: "8px 10px",
-                cursor: "pointer",
+            <label style={label}>Event Cover Image</label>
+            <ImageUpload
+              shape="square"
+              size={300}
+              storagePath={storagePath}
+              currentImageURL={coverURL || undefined}
+              onUploadComplete={(downloadURL) => {
+                setCoverURL(downloadURL);
+                showToast("Cover image uploaded", "success");
               }}
             />
-            {imagePreview && (
-              <img
-                src={imagePreview}
-                alt="Preview"
-                style={{
-                  marginTop: 8,
-                  maxHeight: 180,
-                  borderRadius: 8,
-                  objectFit: "cover",
-                  border: "1px solid #e5e7eb",
-                }}
-              />
-            )}
+          </div>
+
+          {/* Additional Photos (optional) */}
+          <div style={fieldGroup}>
+            <label style={label}>Additional Photos (optional)</label>
+            <p style={hint}>Add up to 5 photos for the event gallery.</p>
+            
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+              {galleryURLs.map((url, idx) => (
+                <div key={`gallery-${idx}`} style={thumbnailWrapper}>
+                  <img src={url} alt={`Gallery ${idx + 1}`} style={thumbnailImage} />
+                  <button
+                    type="button"
+                    onClick={() => setGalleryURLs(prev => prev.filter((_, i) => i !== idx))}
+                    style={removeBtn}
+                    title="Remove photo"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+              
+              {uploadingGallery.map((u) => (
+                <div key={u.id} style={thumbnailWrapper}>
+                  <div style={uploadingOverlay}>
+                    <div style={spinnerStyle} />
+                  </div>
+                </div>
+              ))}
+
+              {galleryURLs.length + uploadingGallery.length < 5 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => galleryInputRef.current?.click()}
+                    style={addPhotoBtn}
+                  >
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                      <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                      <polyline points="21 15 16 10 5 21"></polyline>
+                    </svg>
+                    <span>Add Photo</span>
+                  </button>
+                  <input
+                    ref={galleryInputRef}
+                    type="file"
+                    multiple
+                    accept="image/jpeg,image/png,image/webp"
+                    style={{ display: "none" }}
+                    onChange={async (e) => {
+                      const files = Array.from(e.target.files || []);
+                      if (!files.length) return;
+                      e.target.value = ""; // clear input
+                      
+                      const availableSlots = 5 - galleryURLs.length - uploadingGallery.length;
+                      if (availableSlots <= 0) {
+                        showToast("You can only upload up to 5 gallery images.", "error");
+                        return;
+                      }
+
+                      const filesToUpload = files.slice(0, availableSlots);
+                      if (files.length > availableSlots) {
+                        showToast(`Only ${availableSlots} more image(s) can be uploaded.`, "info");
+                      }
+
+                      const validFiles = filesToUpload.filter(f => {
+                        const isValidType = ["image/jpeg", "image/png", "image/webp"].includes(f.type);
+                        const isValidSize = f.size <= 5 * 1024 * 1024;
+                        if (!isValidType) showToast(`${f.name} is not a valid image type.`, "error");
+                        if (!isValidSize) showToast(`${f.name} exceeds 5MB.`, "error");
+                        return isValidType && isValidSize;
+                      });
+
+                      for (let i = 0; i < validFiles.length; i++) {
+                        const file = validFiles[i];
+                        const uploadId = Math.random().toString(36).substring(7);
+                        setUploadingGallery(prev => [...prev, { id: uploadId }]);
+                        
+                        try {
+                          const path = `events/temp_${Date.now()}/gallery/${i}_${uploadId}.jpg`;
+                          const storageRef = ref(storage, path);
+                          await uploadBytes(storageRef, file);
+                          const url = await getDownloadURL(storageRef);
+                          setGalleryURLs(prev => [...prev, url]);
+                        } catch (err) {
+                          console.error("Gallery upload error:", err);
+                          showToast(`Failed to upload ${file.name}`, "error");
+                        } finally {
+                          setUploadingGallery(prev => prev.filter(p => p.id !== uploadId));
+                        }
+                      }
+                    }}
+                  />
+                </>
+              )}
+            </div>
           </div>
 
           {/* Submit */}
@@ -372,6 +436,7 @@ const fieldGroup: React.CSSProperties = {
 const row: React.CSSProperties = {
   display: "flex",
   gap: 12,
+  flexWrap: "wrap",
 };
 
 const label: React.CSSProperties = {
@@ -424,4 +489,73 @@ const submitBtn: React.CSSProperties = {
   borderRadius: 8,
   transition: "background-color 0.2s",
   width: "100%",
+};
+
+const thumbnailWrapper: React.CSSProperties = {
+  position: "relative",
+  width: 80,
+  height: 80,
+  borderRadius: 8,
+  overflow: "hidden",
+  border: "1px solid #e5e7eb",
+  backgroundColor: "#f9fafb",
+  flexShrink: 0,
+};
+
+const thumbnailImage: React.CSSProperties = {
+  width: "100%",
+  height: "100%",
+  objectFit: "cover",
+  display: "block",
+};
+
+const removeBtn: React.CSSProperties = {
+  position: "absolute",
+  top: 4,
+  right: 4,
+  width: 20,
+  height: 20,
+  backgroundColor: "rgba(0,0,0,0.6)",
+  color: "#fff",
+  border: "none",
+  borderRadius: "50%",
+  fontSize: "0.65rem",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
+};
+
+const addPhotoBtn: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  width: 80,
+  height: 80,
+  borderRadius: 8,
+  border: "1px dashed #d1d5db",
+  backgroundColor: "#f9fafb",
+  color: "#6b7280",
+  fontSize: "0.75rem",
+  cursor: "pointer",
+  gap: 4,
+};
+
+const uploadingOverlay: React.CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  backgroundColor: "rgba(255,255,255,0.7)",
+};
+
+const spinnerStyle: React.CSSProperties = {
+  width: 24,
+  height: 24,
+  border: "3px solid #e5e7eb",
+  borderTopColor: "#246344",
+  borderRadius: "50%",
+  animation: "spin 1s linear infinite",
 };

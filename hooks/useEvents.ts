@@ -11,7 +11,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
-/* ── Filtrelerin tipi (bunu doğru tanımlamak önemli) ── */
+/* ── Filtrelerin tipi  ── */
 
 export interface EventFilters {
   search?: string;
@@ -23,7 +23,7 @@ export interface EventFilters {
   pointMax?: number;
 }
 
-/* ── Firestore'dan gelen verinin şekli (lazım olursa ekleme yaparım) ── */
+/* ── Firestore'dan gelen verinin şekli ── */
 
 export interface EventDoc {
   id: string;
@@ -36,7 +36,7 @@ export interface EventDoc {
   [key: string]: unknown; // firestore'dan fazladan bir şey gelirse patlamasın
 }
 
-/* ── Esas Hook'un kendisi (burası biraz uzun) ── */
+/* ── Esas Hook ── */
 
 export function useEvents(filters: EventFilters = {}) {
   const [events, setEvents] = useState<EventDoc[]>([]);
@@ -47,7 +47,7 @@ export function useEvents(filters: EventFilters = {}) {
     setLoading(true);
     setError(null);
 
-    // Sadece yayınlanmış olanları çekiyorum, diğerleri görünmesin
+    // Sadece yayınlanmış olanlar, diğerleri görünmesin
     const eventsRef = collection(db, "events");
     const baseQuery = query(eventsRef, where("status", "==", "published"));
 
@@ -59,8 +59,7 @@ export function useEvents(filters: EventFilters = {}) {
           ...doc.data(),
         }));
 
-        // ── Client tarafındaki filtrelemeler (buralar biraz amele işi oldu) ──
-
+        // ── Client tarafındaki filtrelemeler 
         // Başlığa göre ara (büyük/küçük harf takıntısı yok)
         if (filters.search) {
           const term = filters.search.toLowerCase();
@@ -89,7 +88,7 @@ export function useEvents(filters: EventFilters = {}) {
           );
         }
 
-        // Kategori olayı (içinde geçiyor mu diye bakıyorum)
+        // Kategori olayı
         if (
           filters.categories &&
           filters.categories.length > 0 &&
@@ -127,15 +126,15 @@ export function useEvents(filters: EventFilters = {}) {
       }
     );
 
-    // Component ölünce listener'ı temizliyoruz yoksa memory leak falan yapar uğraş dur
+    // Component ölünce listener'ı temizliyoruz yoksa memory leak falan
     return () => unsubscribe();
   }, [
     filters.search,
     filters.dateFrom,
     filters.dateTo,
     filters.location,
-    // Array referansı değişip durmasın diye string'e çevirdim (güzel taktik bence)
-    // eslint-disable-next-line react-hooks/exhaustive-deps // eslint mızmızlanmasın diye ekledim
+    // Array referansı değişip durmasın diye
+    // eslint-disable-next-line react-hooks/exhaustive-deps // eslint için
     JSON.stringify(filters.categories),
     filters.pointMin,
     filters.pointMax,

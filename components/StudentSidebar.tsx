@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
@@ -10,7 +11,8 @@ const navItems = [
   { label: "Discover Events", href: "/student/events" },
   { label: "My Applications", href: "/student/my-applications" },
   { label: "Certificates",    href: "/student/certificates" },
-  { label: "Rewards",         href: "/student/rewards" },
+  { label: "Rewards",         href: "/student/rewards", exact: true },
+  { label: "History",         href: "/student/rewards/history" },
   { label: "Feed",            href: "/student/feed" },
   { label: "Profile",         href: "/student/profile" },
 ];
@@ -18,6 +20,7 @@ const navItems = [
 export default function StudentSidebar() {
   const pathname = usePathname();
   const router   = useRouter();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleSignOut = async () => {
     try {
@@ -29,73 +32,167 @@ export default function StudentSidebar() {
   };
 
   return (
-    <aside style={sidebar}>
-      {/* Brand */}
-      <div style={brandBox}>
-        <span style={brandText}>Student Panel</span>
-      </div>
+    <>
+      {/* Responsive styles */}
+      <style>{`
+        .student-sidebar-wrapper {
+          position: relative;
+          width: 240px;
+          min-height: 100vh;
+          flex-shrink: 0;
+        }
+        .student-hamburger-btn {
+          display: none;
+        }
+        @media (max-width: 768px) {
+          .student-sidebar-wrapper {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100%;
+            min-height: unset;
+            z-index: 1000;
+            transition: transform 0.3s ease;
+          }
+          .student-hamburger-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+        }
+      `}</style>
 
-      {/* Nav Links */}
-      {navItems.map((item) => {
-        const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            style={{
-              ...navLink,
-              color:      isActive ? "#246344" : "#374151",
-              background: isActive ? "#f0faf5" : "transparent",
-              borderLeft: isActive
-                ? "3px solid #246344"
-                : "3px solid transparent",
-              fontWeight: isActive ? 600 : 400,
-            }}
-          >
-            {item.label}
-          </Link>
-        );
-      })}
-
-      {/* Spacer */}
-      <div style={{ flex: 1 }} />
-
-      {/* Sign Out */}
-      <div
+      {/* Hamburger button — mobile only */}
+      <button
+        className="student-hamburger-btn"
+        onClick={() => setMobileOpen((v) => !v)}
         style={{
-          borderTop: "1px solid #e5e7eb",
-          padding: "0.75rem 1.25rem 0",
-          marginTop: "0.5rem",
+          position: "fixed",
+          top: 16,
+          left: 16,
+          zIndex: 1001,
+          width: 40,
+          height: 40,
+          background: "#fff",
+          border: "1px solid #e5e7eb",
+          borderRadius: 8,
+          fontSize: "1.25rem",
+          cursor: "pointer",
+        }}
+        aria-label="Toggle navigation"
+      >
+        {mobileOpen ? "✕" : "☰"}
+      </button>
+
+      {/* Dark overlay — mobile only */}
+      {mobileOpen && (
+        <div
+          onClick={() => setMobileOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 999,
+          }}
+        />
+      )}
+
+      {/* Sidebar */}
+      <div
+        className="student-sidebar-wrapper"
+        style={{
+          transform: mobileOpen ? "translateX(0)" : undefined,
+          boxShadow: mobileOpen ? "2px 0 16px rgba(0,0,0,0.15)" : undefined,
+        }}
+        ref={(el) => {
+          if (el) {
+            const mql = window.matchMedia("(max-width: 768px)");
+            const apply = () => {
+              if (mql.matches && !mobileOpen) {
+                el.style.transform = "translateX(-240px)";
+              } else if (mql.matches && mobileOpen) {
+                el.style.transform = "translateX(0)";
+              } else {
+                el.style.transform = "";
+              }
+            };
+            apply();
+          }
         }}
       >
-        <button
-          onClick={handleSignOut}
-          style={{
-            display: "block",
-            width: "100%",
-            padding: "10px 0",
-            background: "transparent",
-            border: "none",
-            color: "#dc2626",
-            fontSize: "0.88rem",
-            fontWeight: 600,
-            cursor: "pointer",
-            textAlign: "left",
-            borderRadius: 6,
-            transition: "background 0.2s",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = "#fef2f2";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "transparent";
-          }}
-        >
-          Sign Out
-        </button>
+        <aside style={sidebar}>
+          {/* Logo + Brand */}
+          <div style={{ padding: "20px 16px 16px", borderBottom: "1px solid #e5e7eb", marginBottom: "0.5rem" }}>
+            <img src="/logo_2.png" alt="VolunTRY" style={{ height: 36, objectFit: "contain" as const }} />
+            <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>Volunteer Portal</div>
+          </div>
+
+          {/* Nav Links */}
+          {navItems.map((item) => {
+            const isActive = item.exact 
+              ? pathname === item.href 
+              : pathname === item.href || pathname.startsWith(item.href + "/");
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setMobileOpen(false)}
+                style={{
+                  ...navLink,
+                  color:      isActive ? "#246344" : "#374151",
+                  background: isActive ? "#f0faf5" : "transparent",
+                  borderLeft: isActive
+                    ? "3px solid #246344"
+                    : "3px solid transparent",
+                  fontWeight: isActive ? 600 : 400,
+                }}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+
+          {/* Spacer */}
+          <div style={{ flex: 1 }} />
+
+          {/* Sign Out */}
+          <div
+            style={{
+              borderTop: "1px solid #e5e7eb",
+              padding: "0.75rem 1.25rem 0",
+              marginTop: "0.5rem",
+            }}
+          >
+            <button
+              onClick={handleSignOut}
+              style={{
+                display: "block",
+                width: "100%",
+                padding: "10px 0",
+                background: "transparent",
+                border: "none",
+                color: "#dc2626",
+                fontSize: "0.88rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                textAlign: "left",
+                borderRadius: 6,
+                transition: "background 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "#fef2f2";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "transparent";
+              }}
+            >
+              Sign Out
+            </button>
+          </div>
+        </aside>
       </div>
-    </aside>
+    </>
   );
 }
 

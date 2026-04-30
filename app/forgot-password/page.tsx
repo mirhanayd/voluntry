@@ -40,7 +40,7 @@ export default function ForgotPasswordPage() {
       <div style={styles.card}>
         {/* Logo */}
         <div style={styles.logoWrapper}>
-          <img src="/logo.png" alt="VolunTRY" style={styles.logo} />
+          <img src="/logo_2.png" alt="VolunTRY" style={{ height: 52, objectFit: "contain" as const }} />
         </div>
 
         {sent ? (
@@ -199,12 +199,13 @@ const styles: { [key: string]: React.CSSProperties } = {
     padding: "12px",
     backgroundColor: "#246344",
     color: "#ffffff",
-    fontSize: "0.95rem",
+    fontSize: "15px",
     fontWeight: "600",
     border: "none",
     borderRadius: "8px",
     transition: "background-color 0.2s",
     width: "100%",
+    cursor: "pointer",
   },
   bottomText: {
     textAlign: "center" as const,

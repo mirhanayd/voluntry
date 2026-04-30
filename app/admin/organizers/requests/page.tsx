@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   collection,
   getDocs,
@@ -11,6 +11,8 @@ import {
 } from "firebase/firestore";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { db, auth } from "@/lib/firebase";
+import { useToast } from "@/components/Toast";
+import { useConfirm } from "@/components/ConfirmModal";
 
 interface OrgRequest {
   id: string;
@@ -25,15 +27,11 @@ interface OrgRequest {
 export default function OrgRequestsPage() {
   const [requests, setRequests] = useState<OrgRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [processing, setProcessing] = useState<string | null>(null);
+  const { showToast } = useToast();
+  const confirm = useConfirm();
 
-  const showToast = (message: string, type: "success" | "error" = "success") => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 5000);
-  };
-
-  const fetchRequests = async () => {
+  const fetchRequests = useCallback(async () => {
     try {
       const snap = await getDocs(
         query(collection(db, "organizer_requests"), where("status", "==", "pending"))
@@ -43,24 +41,34 @@ export default function OrgRequestsPage() {
       setRequests(rows);
     } catch (err) {
       console.error("Failed to fetch org requests:", err);
+      showToast("Failed to fetch organization requests.", "error");
     } finally {
       setLoading(false);
     }
-  };
+  }, [showToast]);
 
   useEffect(() => {
     fetchRequests();
-  }, []);
+  }, [fetchRequests]);
 
   const handleApprove = async (req: OrgRequest) => {
-    if (!confirm(`Approve "${req.organizationName}"?`)) return;
+    const confirmed = await confirm({
+      title: "Approve Organization",
+      message: `Approve "${req.organizationName}"?`,
+      confirmLabel: "Approve",
+    });
+    if (!confirmed) return;
     setProcessing(req.id);
 
     try {
       // Call server-side API route (uses Admin SDK — does NOT affect client session)
+      const token = await auth.currentUser?.getIdToken();
       const res = await fetch("/api/admin/approve-org", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
           email: req.email,
           organizationName: req.organizationName,
@@ -80,17 +88,27 @@ export default function OrgRequestsPage() {
 
       // Remove from local list
       setRequests((prev) => prev.filter((r) => r.id !== req.id));
-      showToast(`Organization approved. A password setup email has been sent to ${req.email}.`);
-    } catch (err: any) {
+      showToast(
+        `Organization approved. A password setup email has been sent to ${req.email}.`,
+        "success"
+      );
+    } catch (err: unknown) {
       console.error("Approve failed:", err);
-      showToast(err.message || "Failed to approve. Please try again.", "error");
+      const message = err instanceof Error ? err.message : "Failed to approve. Please try again.";
+      showToast(message, "error");
     } finally {
       setProcessing(null);
     }
   };
 
   const handleReject = async (req: OrgRequest) => {
-    if (!confirm(`Reject "${req.organizationName}"?`)) return;
+    const confirmed = await confirm({
+      title: "Reject Organization",
+      message: `Reject "${req.organizationName}"?`,
+      confirmLabel: "Reject",
+      destructive: true,
+    });
+    if (!confirmed) return;
     setProcessing(req.id);
 
     try {
@@ -98,7 +116,7 @@ export default function OrgRequestsPage() {
         status: "rejected",
       });
       setRequests((prev) => prev.filter((r) => r.id !== req.id));
-      showToast("Request rejected.");
+      showToast("Request rejected.", "warning");
     } catch (err) {
       console.error("Reject failed:", err);
       showToast("Failed to reject. Please try again.", "error");
@@ -164,32 +182,6 @@ export default function OrgRequestsPage() {
           </table>
         </div>
       )}
-
-      {/* Toast */}
-      {toast && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: 24,
-            right: 24,
-            padding: "14px 20px",
-            borderRadius: 10,
-            fontSize: "0.85rem",
-            fontWeight: 500,
-            color: toast.type === "success" ? "#065f46" : "#991b1b",
-            backgroundColor: toast.type === "success" ? "#d1fae5" : "#fee2e2",
-            border: `1px solid ${toast.type === "success" ? "#6ee7b7" : "#fca5a5"}`,
-            boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
-            zIndex: 9999,
-            maxWidth: 420,
-            animation: "slideIn 0.3s ease",
-          }}
-        >
-          {toast.message}
-        </div>
-      )}
-
-      <style>{`@keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }`}</style>
     </div>
   );
 }

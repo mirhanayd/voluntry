@@ -8,7 +8,7 @@ import {
   getDocs,
   addDoc,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 
 /**
  * Award points to a user via a Firestore transaction.
@@ -20,6 +20,11 @@ export async function awardPoints(
   eventId: string,
   points: number
 ): Promise<void> {
+  // ── Client-side auth guard ──────────────────────────────────────────────
+  if (!auth.currentUser) {
+    throw new Error("Not authenticated");
+  }
+
   const userRef = doc(db, "users", uid);
 
   await runTransaction(db, async (transaction) => {
@@ -55,6 +60,11 @@ export async function generateCertificate(
   uid: string,
   eventId: string
 ): Promise<string> {
+  // ── Client-side auth guard ──────────────────────────────────────────────
+  if (!auth.currentUser) {
+    throw new Error("Not authenticated");
+  }
+
   // Read event document
   const eventSnap = await getDoc(doc(db, "events", eventId));
   if (!eventSnap.exists()) {
@@ -83,6 +93,29 @@ export async function generateCertificate(
     issuedAt: new Date().toISOString(),
   });
 
+  // Reuse userData already fetched above (no redundant Firestore read)
+  const avatarURL =
+    typeof userData.avatarURL === "string" &&
+    userData.avatarURL.trim() !== ""
+      ? userData.avatarURL
+      : "";
+
+  await addDoc(collection(db, "feed-posts"), {
+    userId: uid,
+    eventId,
+    eventTitle: eventData.title ?? "",
+    eventDate: eventData.date ?? "",
+    organizerName: eventData.organizerName ?? "",
+    pointValue: eventData.pointValue ?? 0,
+    studentName: userData.fullName ?? "",
+    universityName: userData.universityName ?? "",
+    departmentName: userData.departmentName ?? "",
+    certificateId: certRef.id,
+    avatarURL,
+    isPublic: true,
+    createdAt: new Date().toISOString(),
+  });
+
   // The auto-generated Firestore id is already the doc id
   // Optionally store it inside the document for easy access
   const { updateDoc: fbUpdateDoc } = await import("firebase/firestore");
@@ -90,3 +123,4 @@ export async function generateCertificate(
 
   return certRef.id;
 }
+

@@ -15,6 +15,8 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/useToast";
 import ImageUpload from "@/components/ImageUpload";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { StatCard } from "@/components/ui/StatCard";
 
 interface DashboardStats {
   activeEvents: number | null;
@@ -119,6 +121,14 @@ export default function OrganizerDashboardPage() {
     { label: "Completed Events", value: stats.completedEvents, icon: "✅" },
   ];
 
+  if (authLoading || !user) {
+    return (
+      <div style={page}>
+        <p style={{ color: "#9ca3af" }}>Loading...</p>
+      </div>
+    );
+  }
+
   return (
     <div style={page}>
       {/* ══════════ Profile Card ══════════ */}
@@ -137,25 +147,21 @@ export default function OrganizerDashboardPage() {
             }
           }}
         />
-        <div>
-          <h1 style={heading}>{orgName || "Dashboard"}</h1>
-          <p style={sub}>Overview of your events and applications</p>
-        </div>
+        <PageHeader
+          title={orgName || "Dashboard"}
+          subtitle="Overview of your events and applications"
+        />
       </div>
 
       <div style={grid}>
         {cards.map((card) => (
-          <div key={card.label} style={cardStyle}>
-            <div style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>
-              {card.icon}
-            </div>
-            <p style={cardLabel}>{card.label}</p>
-            {card.value !== null ? (
-              <p style={cardValue}>{card.value}</p>
-            ) : (
-              <p style={loadingValue}>Loading...</p>
-            )}
-          </div>
+          <StatCard
+            key={card.label}
+            label={card.label}
+            value={card.value !== null ? card.value : "Loading..."}
+            icon={card.icon}
+            color={card.value !== null ? "#246344" : "#9ca3af"}
+          />
         ))}
       </div>
     </div>
@@ -182,51 +188,8 @@ const profileCard: React.CSSProperties = {
   padding: "1.5rem 2rem",
 };
 
-const heading: React.CSSProperties = {
-  fontSize: "1.5rem",
-  fontWeight: 700,
-  color: "#111827",
-  margin: "0 0 0.25rem",
-};
-
-const sub: React.CSSProperties = {
-  fontSize: "0.88rem",
-  color: "#6b7280",
-  margin: 0,
-};
-
 const grid: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
   gap: "1.25rem",
-};
-
-const cardStyle: React.CSSProperties = {
-  background: "#ffffff",
-  border: "1px solid #e5e7eb",
-  borderRadius: 10,
-  padding: "1.5rem",
-  transition: "box-shadow 0.2s",
-};
-
-const cardLabel: React.CSSProperties = {
-  fontSize: "0.78rem",
-  fontWeight: 600,
-  color: "#6b7280",
-  textTransform: "uppercase",
-  letterSpacing: "0.05em",
-  margin: "0 0 0.5rem",
-};
-
-const cardValue: React.CSSProperties = {
-  fontSize: "2rem",
-  fontWeight: 700,
-  color: "#246344",
-  margin: 0,
-};
-
-const loadingValue: React.CSSProperties = {
-  fontSize: "1rem",
-  color: "#9ca3af",
-  margin: 0,
 };

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { collection, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Link from "next/link";
+import { SearchableDropdown } from "@/components/ui/SearchableDropdown";
 
 const ORG_TYPES = [
   "Municipality",
@@ -15,106 +16,7 @@ const ORG_TYPES = [
   "Other",
 ];
 
-/* ── Searchable Dropdown ─────────────────────────────────────────────────────── */
-
-function OrgTypeDropdown({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-        setSearch("");
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  const filtered = ORG_TYPES.filter((t) =>
-    t.toLowerCase().includes(search.toLowerCase())
-  );
-
-  return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <div
-        onClick={() => setOpen(!open)}
-        style={{
-          ...inputStyle,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          cursor: "pointer",
-          color: value ? "#111827" : "#9ca3af",
-          userSelect: "none",
-        }}
-      >
-        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {value || "Select organization type"}
-        </span>
-        <span style={{ fontSize: "10px", marginLeft: "8px", flexShrink: 0 }}>
-          {open ? "▲" : "▼"}
-        </span>
-      </div>
-
-      {open && (
-        <div style={dropdownStyle}>
-          <div style={{ padding: "8px" }}>
-            <input
-              autoFocus
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search..."
-              style={{ ...inputStyle, margin: 0, fontSize: "13px", padding: "8px 10px" }}
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>
-          <div style={{ maxHeight: "200px", overflowY: "auto" }}>
-            {filtered.length === 0 && (
-              <div style={{ padding: "12px 14px", fontSize: "13px", color: "#9ca3af", textAlign: "center" }}>
-                No results found
-              </div>
-            )}
-            {filtered.map((type) => (
-              <div
-                key={type}
-                onClick={() => {
-                  onChange(type);
-                  setOpen(false);
-                  setSearch("");
-                }}
-                style={{
-                  padding: "9px 14px",
-                  fontSize: "13px",
-                  cursor: "pointer",
-                  backgroundColor: value === type ? "#f0faf5" : "transparent",
-                  fontWeight: value === type ? 600 : 400,
-                  color: "#111827",
-                  transition: "background-color 0.1s",
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f0faf5")}
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.backgroundColor =
-                    value === type ? "#f0faf5" : "transparent")
-                }
-              >
-                {type}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+const ORG_TYPE_OPTIONS = ORG_TYPES.map((type) => ({ id: type, name: type }));
 
 /* ── Organization Registration Page ──────────────────────────────────────────── */
 
@@ -258,9 +160,12 @@ export default function OrganizationRegisterPage() {
               {/* Organization Type */}
               <div style={fieldGroup}>
                 <label style={labelStyle}>Organization Type</label>
-                <OrgTypeDropdown
+                <SearchableDropdown
+                  options={ORG_TYPE_OPTIONS}
                   value={form.organizationType}
-                  onChange={(v) => handleChange("organizationType", v)}
+                  onChange={(id) => handleChange("organizationType", id)}
+                  placeholder="Select organization type"
+                  displayKey="name"
                 />
               </div>
 
@@ -387,14 +292,3 @@ const buttonStyle: React.CSSProperties = {
   width: "100%",
 };
 
-const dropdownStyle: React.CSSProperties = {
-  position: "absolute",
-  top: "calc(100% + 4px)",
-  left: 0,
-  right: 0,
-  backgroundColor: "#ffffff",
-  border: "1px solid #d1d5db",
-  borderRadius: "8px",
-  boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
-  zIndex: 999,
-};

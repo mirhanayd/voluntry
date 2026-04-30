@@ -1,15 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState, Fragment } from "react";
 import {
   collection,
   getDocs,
-  query,
-  where,
+  getDoc,
+  addDoc,
   doc,
   updateDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { useToast } from "@/components/Toast";
+import { useConfirm } from "@/components/ConfirmModal";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 
 interface EventRow {
   id: string;
@@ -28,9 +31,13 @@ export default function EventAuditPage() {
   const [events, setEvents] = useState<EventRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>("pending_approval");
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const { showToast } = useToast();
+  const confirm = useConfirm();
 
   // ── Fetch events ────────────────────────────────────────────────────────
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     setLoading(true);
     try {
       const snap = await getDocs(collection(db, "events"));
@@ -41,48 +48,90 @@ export default function EventAuditPage() {
       setEvents(rows);
     } catch (err) {
       console.error("Failed to fetch events:", err);
+      showToast("Failed to fetch events.", "error");
     } finally {
       setLoading(false);
     }
-  };
+  }, [showToast]);
 
   useEffect(() => {
     fetchEvents();
-  }, []);
+  }, [fetchEvents]);
 
   // ── Approve ─────────────────────────────────────────────────────────────
   const handleApprove = async (id: string) => {
-    if (!confirm("Approve this event? It will be published to students."))
-      return;
+    const confirmed = await confirm({
+      title: "Approve Event",
+      message: "Approve this event? It will be published to students.",
+      confirmLabel: "Approve",
+    });
+    if (!confirmed) return;
     try {
       await updateDoc(doc(db, "events", id), { status: "published" });
+
+      // Create new_event feed post
+      const eventSnap = await getDoc(doc(db, "events", id));
+      if (eventSnap.exists()) {
+        const ev = eventSnap.data();
+        await addDoc(collection(db, "feed-posts"), {
+          type: "new_event",
+          eventId: id,
+          eventTitle: ev.title || "",
+          eventDate: ev.date || "",
+          organizerName: ev.organizerName || "",
+          pointValue: ev.pointValue || 0,
+          coverURL: ev.coverURL || "",
+          location: ev.location || "",
+          maxParticipants: ev.maxParticipants || 0,
+          currentParticipants: ev.currentParticipants || 0,
+          eventDescription: ev.description || "",
+          isPublic: true,
+          createdAt: new Date().toISOString(),
+        });
+      }
+
       setEvents((prev) =>
         prev.map((e) => (e.id === id ? { ...e, status: "published" } : e))
       );
+      showToast("Event approved and published.", "success");
     } catch (err) {
       console.error("Failed to approve event:", err);
+      showToast("Failed to approve event.", "error");
     }
   };
 
   // ── Reject ──────────────────────────────────────────────────────────────
-  const handleReject = async (id: string) => {
-    const reason = prompt("Enter rejection reason:");
-    if (reason === null) return; // cancelled
+  const handleReject = async (id: string, reason: string) => {
+    const note = reason.trim();
     try {
       await updateDoc(doc(db, "events", id), {
         status: "rejected",
-        rejectionNote: reason || "",
+        rejectionNote: note || "",
       });
       setEvents((prev) =>
         prev.map((e) =>
           e.id === id
-            ? { ...e, status: "rejected", rejectionNote: reason || "" }
+            ? { ...e, status: "rejected", rejectionNote: note || "" }
             : e
         )
       );
+      setRejectingId(null);
+      setRejectionReason("");
+      showToast("Event rejected.", "warning");
     } catch (err) {
       console.error("Failed to reject event:", err);
+      showToast("Failed to reject event.", "error");
     }
+  };
+
+  const startReject = (id: string) => {
+    setRejectingId(id);
+    setRejectionReason("");
+  };
+
+  const cancelReject = () => {
+    setRejectingId(null);
+    setRejectionReason("");
   };
 
   // ── Filtered list ───────────────────────────────────────────────────────
@@ -157,70 +206,81 @@ export default function EventAuditPage() {
             </thead>
             <tbody>
               {visible.map((ev) => (
-                <tr key={ev.id}>
-                  <td style={td}>{ev.title}</td>
-                  <td style={td}>{ev.organizer || "—"}</td>
-                  <td style={td}>{ev.date || "—"}</td>
-                  <td style={td}>{ev.location || "—"}</td>
-                  <td style={td}>{ev.pointValue ?? "—"}</td>
-                  <td style={td}>
-                    <span
-                      style={{
-                        ...chip,
-                        background:
-                          ev.status === "published"
-                            ? "rgba(36,99,68,0.1)"
-                            : ev.status === "rejected"
-                            ? "rgba(185,28,28,0.08)"
-                            : "rgba(234,179,8,0.12)",
-                        color:
-                          ev.status === "published"
-                            ? "#246344"
-                            : ev.status === "rejected"
-                            ? "#b91c1c"
-                            : "#92400e",
-                      }}
-                    >
-                      {ev.status === "pending_approval"
-                        ? "Pending"
-                        : ev.status}
-                    </span>
-                    {ev.status === "rejected" && ev.rejectionNote && (
-                      <div
-                        style={{
-                          fontSize: "0.72rem",
-                          color: "#9ca3af",
-                          marginTop: 2,
-                        }}
-                      >
-                        Note: {ev.rejectionNote}
-                      </div>
-                    )}
-                  </td>
-                  <td style={{ ...td, whiteSpace: "nowrap" }}>
-                    {ev.status === "pending_approval" && (
-                      <>
-                        <button
-                          onClick={() => handleApprove(ev.id)}
-                          style={approveBtn}
+                <Fragment key={ev.id}>
+                  <tr>
+                    <td style={td}>{ev.title}</td>
+                    <td style={td}>{ev.organizer || "—"}</td>
+                    <td style={td}>{ev.date || "—"}</td>
+                    <td style={td}>{ev.location || "—"}</td>
+                    <td style={td}>{ev.pointValue ?? "—"}</td>
+                    <td style={td}>
+                      <StatusBadge status={ev.status} />
+                      {ev.status === "rejected" && ev.rejectionNote && (
+                        <div
+                          style={{
+                            fontSize: "0.72rem",
+                            color: "#9ca3af",
+                            marginTop: 2,
+                          }}
                         >
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => handleReject(ev.id)}
-                          style={rejectBtn}
-                        >
-                          Reject
-                        </button>
-                      </>
-                    )}
-                    {ev.status !== "pending_approval" && (
-                      <span style={{ color: "#9ca3af", fontSize: "0.78rem" }}>
-                        —
-                      </span>
-                    )}
-                  </td>
-                </tr>
+                          Note: {ev.rejectionNote}
+                        </div>
+                      )}
+                    </td>
+                    <td style={{ ...td, whiteSpace: "nowrap" }}>
+                      {ev.status === "pending_approval" && (
+                        <>
+                          <button
+                            onClick={() => handleApprove(ev.id)}
+                            style={approveBtn}
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => startReject(ev.id)}
+                            style={rejectBtn}
+                          >
+                            Reject
+                          </button>
+                        </>
+                      )}
+                      {ev.status !== "pending_approval" && (
+                        <span style={{ color: "#9ca3af", fontSize: "0.78rem" }}>
+                          —
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                  {rejectingId === ev.id && (
+                    <tr>
+                      <td colSpan={7} style={rejectRow}>
+                        <div style={rejectInputWrap}>
+                          <input
+                            value={rejectionReason}
+                            onChange={(event) => setRejectionReason(event.target.value)}
+                            placeholder="Rejection reason"
+                            style={rejectInput}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void handleReject(ev.id, rejectionReason)}
+                            style={confirmRejectBtn}
+                          >
+                            Confirm Rejection
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelReject}
+                            style={cancelRejectBtn}
+                            aria-label="Cancel rejection"
+                          >
+                            X
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -252,9 +312,6 @@ const th: React.CSSProperties = {
   color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid #e5e7eb", whiteSpace: "nowrap",
 };
 const td: React.CSSProperties = { padding: "10px 14px", borderBottom: "1px solid #f3f4f6", color: "#111827" };
-const chip: React.CSSProperties = {
-  display: "inline-block", padding: "2px 10px", borderRadius: 12, fontSize: "0.76rem", fontWeight: 600, textTransform: "capitalize",
-};
 const approveBtn: React.CSSProperties = {
   padding: "4px 10px", fontSize: "0.78rem", fontWeight: 600,
   background: "#246344", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", marginRight: 6,
@@ -262,4 +319,41 @@ const approveBtn: React.CSSProperties = {
 const rejectBtn: React.CSSProperties = {
   padding: "4px 10px", fontSize: "0.78rem", fontWeight: 600,
   background: "#fff", color: "#b91c1c", border: "1px solid #fca5a5", borderRadius: 4, cursor: "pointer",
+};
+const rejectRow: React.CSSProperties = {
+  padding: "10px 14px",
+  background: "#fff",
+  borderBottom: "1px solid #f3f4f6",
+};
+const rejectInputWrap: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  alignItems: "center",
+};
+const rejectInput: React.CSSProperties = {
+  border: "1px solid #fca5a5",
+  borderRadius: 6,
+  padding: "6px 10px",
+  fontSize: 13,
+  width: "100%",
+  outline: "none",
+};
+const confirmRejectBtn: React.CSSProperties = {
+  background: "#dc2626",
+  color: "#fff",
+  border: "none",
+  borderRadius: 6,
+  padding: "6px 12px",
+  fontSize: 13,
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+};
+const cancelRejectBtn: React.CSSProperties = {
+  background: "#fff",
+  color: "#b91c1c",
+  border: "1px solid #fca5a5",
+  borderRadius: 6,
+  padding: "6px 10px",
+  fontSize: 13,
+  cursor: "pointer",
 };

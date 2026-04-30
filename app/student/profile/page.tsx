@@ -12,7 +12,7 @@ import {
 } from "firebase/firestore";
 import { db }      from "@/lib/firebase";
 import { useAuth } from "@/hooks/useAuth";
-import { useToast } from "@/hooks/useToast";
+import { useToast } from "@/components/Toast";
 import ImageUpload from "@/components/ImageUpload";
 
 /* ── Types ─────────────────────────────────────────────────────────────────── */
@@ -24,6 +24,7 @@ interface UserProfile {
   departmentName: string;
   points: number;
   avatarURL?: string;
+  shareAchievements?: boolean;
 }
 
 interface HistoryRow {
@@ -45,6 +46,8 @@ export default function StudentProfilePage() {
   const [editName, setEditName]           = useState("");
   const [saving, setSaving]               = useState(false);
   const [saveMsg, setSaveMsg]             = useState("");
+  const [shareAchievements, setShareAchievements] = useState(true);
+  const [updatingShare, setUpdatingShare] = useState(false);
 
   const [totalEarned, setTotalEarned]     = useState(0);
   const [pointsSpent, setPointsSpent]     = useState(0);
@@ -89,6 +92,8 @@ export default function StudentProfilePage() {
         // User profile
         if (userSnap.exists()) {
           const u = userSnap.data();
+          const shareSetting =
+            typeof u.shareAchievements === "boolean" ? u.shareAchievements : true;
           const prof: UserProfile = {
             fullName:       u.fullName       ?? "",
             email:          u.email          ?? user!.email ?? "",
@@ -96,9 +101,11 @@ export default function StudentProfilePage() {
             departmentName: u.departmentName ?? "",
             points:         u.points         ?? 0,
             avatarURL:      u.avatarURL      ?? undefined,
+            shareAchievements: shareSetting,
           };
           setProfile(prof);
           setEditName(prof.fullName);
+          setShareAchievements(shareSetting);
         }
 
         // Total earned (from certificates)
@@ -181,6 +188,40 @@ export default function StudentProfilePage() {
     }
   };
 
+  const handleShareAchievementsToggle = async () => {
+    if (!user || updatingShare) return;
+
+    const newValue = !shareAchievements;
+    setUpdatingShare(true);
+    try {
+      await updateDoc(doc(db, "users", user.uid), { shareAchievements: newValue });
+
+      const feedSnap = await getDocs(
+        query(collection(db, "feed-posts"), where("userId", "==", user.uid))
+      );
+
+      for (const feedDoc of feedSnap.docs) {
+        await updateDoc(feedDoc.ref, { isPublic: newValue });
+      }
+
+      setShareAchievements(newValue);
+      setProfile((prev) =>
+        prev ? { ...prev, shareAchievements: newValue } : prev
+      );
+
+      if (newValue) {
+        showToast("Achievement sharing enabled", "success");
+      } else {
+        showToast("Achievement sharing disabled", "info");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Failed to update sharing preference", "error");
+    } finally {
+      setUpdatingShare(false);
+    }
+  };
+
   /* ── Render ─────────────────────────────────────────────────────────────── */
 
   if (loading || authLoading) {
@@ -203,6 +244,19 @@ export default function StudentProfilePage() {
 
   return (
     <div style={page}>
+      {/* Responsive profile styles */}
+      <style>{`
+        .profile-field-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 16px;
+        }
+        @media (max-width: 600px) {
+          .profile-field-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
       <h1 style={heading}>My Profile</h1>
       <p style={sub}>Manage your information, wallet and history</p>
 
@@ -244,7 +298,7 @@ export default function StudentProfilePage() {
           </div>
         )}
 
-        <div style={fieldGrid}>
+        <div className="profile-field-grid">
           {/* Full Name */}
           <div style={fieldGroup}>
             <label style={label}>Full Name</label>
@@ -276,6 +330,35 @@ export default function StudentProfilePage() {
             <label style={label}>Department</label>
             <p style={fieldValue}>{profile.departmentName || "—"}</p>
           </div>
+        </div>
+
+        <div style={shareRow}>
+          <span style={shareLabel}>Share my achievements on the public feed</span>
+          <label style={toggleLabel}>
+            <input
+              type="checkbox"
+              checked={shareAchievements}
+              onChange={handleShareAchievementsToggle}
+              disabled={updatingShare}
+              style={toggleInput}
+            />
+            <span
+              style={{
+                ...toggleTrack,
+                background: shareAchievements ? "#246344" : "#d1d5db",
+                opacity: updatingShare ? 0.7 : 1,
+              }}
+            >
+              <span
+                style={{
+                  ...toggleThumb,
+                  transform: shareAchievements
+                    ? "translateX(20px)"
+                    : "translateX(0px)",
+                }}
+              />
+            </span>
+          </label>
         </div>
 
         <div style={{ marginTop: 16, display: "flex", gap: 10 }}>
@@ -445,6 +528,55 @@ const fieldValue: React.CSSProperties = {
   fontSize: "0.92rem",
   color: "#111827",
   margin: 0,
+};
+
+const shareRow: React.CSSProperties = {
+  marginTop: 14,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+};
+
+const shareLabel: React.CSSProperties = {
+  fontSize: "0.88rem",
+  color: "#111827",
+  fontWeight: 500,
+};
+
+const toggleLabel: React.CSSProperties = {
+  position: "relative",
+  display: "inline-block",
+  width: 44,
+  height: 24,
+  flexShrink: 0,
+};
+
+const toggleInput: React.CSSProperties = {
+  opacity: 0,
+  width: 0,
+  height: 0,
+  position: "absolute",
+};
+
+const toggleTrack: React.CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  borderRadius: 999,
+  transition: "background-color 180ms ease",
+  cursor: "pointer",
+};
+
+const toggleThumb: React.CSSProperties = {
+  position: "absolute",
+  top: 2,
+  left: 2,
+  width: 20,
+  height: 20,
+  borderRadius: "50%",
+  background: "#ffffff",
+  boxShadow: "0 1px 3px rgba(0, 0, 0, 0.2)",
+  transition: "transform 180ms ease",
 };
 
 const input: React.CSSProperties = {

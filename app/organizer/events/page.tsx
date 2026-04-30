@@ -5,6 +5,7 @@ import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/hooks/useAuth";
 import Link from "next/link";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 
 interface EventRow {
   id: string;
@@ -15,13 +16,6 @@ interface EventRow {
   currentParticipants?: number;
   maxParticipants?: number;
 }
-
-const statusColors: Record<string, { bg: string; color: string }> = {
-  pending_approval: { bg: "rgba(234,179,8,0.12)", color: "#92400e" },
-  published: { bg: "rgba(36,99,68,0.1)", color: "#246344" },
-  rejected: { bg: "rgba(239,68,68,0.1)", color: "#b91c1c" },
-  completed: { bg: "rgba(107,114,128,0.1)", color: "#374151" },
-};
 
 export default function OrganizerEventsPage() {
   const { user, loading: authLoading } = useAuth();
@@ -91,10 +85,8 @@ export default function OrganizerEventsPage() {
               </tr>
             </thead>
             <tbody>
-              {events.map((ev) => {
-                const sc = statusColors[ev.status] || statusColors.completed;
-                return (
-                  <tr key={ev.id}>
+              {events.map((ev) => (
+                <tr key={ev.id}>
                     <td style={td}>{ev.title}</td>
                     <td style={td}>{ev.date}</td>
                     <td style={td}>{ev.location}</td>
@@ -102,15 +94,7 @@ export default function OrganizerEventsPage() {
                       {ev.currentParticipants ?? 0}/{ev.maxParticipants ?? "—"}
                     </td>
                     <td style={td}>
-                      <span
-                        style={{
-                          ...statusChip,
-                          background: sc.bg,
-                          color: sc.color,
-                        }}
-                      >
-                        {ev.status.replace("_", " ")}
-                      </span>
+                      <StatusBadge status={ev.status} />
                     </td>
                     <td style={{ ...td, whiteSpace: "nowrap" }}>
                       <Link
@@ -126,9 +110,8 @@ export default function OrganizerEventsPage() {
                         Feedback
                       </Link>
                     </td>
-                  </tr>
-                );
-              })}
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -221,14 +204,6 @@ const td: React.CSSProperties = {
   color: "#111827",
 };
 
-const statusChip: React.CSSProperties = {
-  display: "inline-block",
-  padding: "2px 10px",
-  borderRadius: 12,
-  fontSize: "0.76rem",
-  fontWeight: 600,
-  textTransform: "capitalize",
-};
 
 const viewBtn: React.CSSProperties = {
   padding: "4px 12px",

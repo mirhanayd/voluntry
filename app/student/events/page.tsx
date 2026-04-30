@@ -3,20 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useEvents, EventFilters } from "@/hooks/useEvents";
-
-/* ── Kategori seçenekleri (buraya yeni bölümler eklenebilir) ── */
-
-const CATEGORY_OPTIONS = [
-  "All",
-  "Engineering",
-  "Health",
-  "Law & Social Sciences",
-  "Architecture & Design",
-  "Business & Economics",
-  "Education",
-  "Communication",
-  "Science",
-];
+import { DEPARTMENT_OPTIONS } from "@/constants/index";
 
 /* ── Başlangıç değerleri (hepsini boş bırakıyorum şimdilik) ── */
 
@@ -34,6 +21,7 @@ const DEFAULT_FILTERS: EventFilters = {
 
 export default function StudentEventsPage() {
   const [filters, setFilters] = useState<EventFilters>({ ...DEFAULT_FILTERS });
+  const [showFilters, setShowFilters] = useState(false);
   const router = useRouter();
 
   // Filtreleri hook'a yolluyoruz ki verileri çeksin
@@ -112,9 +100,42 @@ export default function StudentEventsPage() {
   /* ── Ekrana bastığımız kısım) ── */
 
   return (
-    <div style={pageWrap}>
+    <div style={pageWrap} className="events-layout">
+      {/* Responsive styles */}
+      <style>{`
+        .events-layout {
+          display: flex;
+        }
+        .filter-panel {
+          width: 260px;
+          min-width: 260px;
+        }
+        .filter-toggle-btn {
+          display: none;
+        }
+        @media (max-width: 768px) {
+          .events-layout {
+            flex-direction: column;
+          }
+          .filter-panel {
+            width: 100%;
+            min-width: unset;
+          }
+          .filter-toggle-btn {
+            display: block;
+            margin-bottom: 12px;
+          }
+          .filter-panel.hidden {
+            display: none;
+          }
+        }
+      `}</style>
+
       {/* ── Filtre Paneli (solda duracak) ── */}
-      <aside style={filterPanel}>
+      <aside
+        style={filterPanel}
+        className={`filter-panel${!showFilters ? ' hidden' : ''}`}
+      >
         <div style={filterHeader}>
           <h2 style={filterTitle}>Filters</h2>
           <button
@@ -186,7 +207,7 @@ export default function StudentEventsPage() {
         <div style={filterGroup}>
           <label style={labelStyle}>Department / Category</label>
           <div style={checkboxList}>
-            {CATEGORY_OPTIONS.map((cat) => {
+            {DEPARTMENT_OPTIONS.map((cat) => {
               const checked = (filters.categories ?? []).includes(cat);
               return (
                 <label key={cat} style={checkboxRow}>
@@ -243,6 +264,23 @@ export default function StudentEventsPage() {
 
       {/* ── Etkinlik kartları alanı ── */}
       <main style={mainArea}>
+        {/* Filter toggle button — mobile only */}
+        <button
+          className="filter-toggle-btn"
+          onClick={() => setShowFilters((v) => !v)}
+          style={{
+            background: '#fff',
+            border: '1px solid #246344',
+            color: '#246344',
+            borderRadius: 8,
+            padding: '8px 16px',
+            fontSize: '0.88rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >
+          {showFilters ? '🔼 Hide Filters' : '🔽 Filters'}
+        </button>
         <h1 style={pageTitle}>Discover Events</h1>
 
         {/* Hata */}
@@ -296,7 +334,7 @@ export default function StudentEventsPage() {
               const current = (ev.currentParticipants as number) ?? 0;
               const max = (ev.maxParticipants as number) ?? 0;
               const isFull = max > 0 && current >= max;
-              const imageUrl = ev.imageURL as string | undefined;
+              const imageUrl = (ev.coverURL ?? ev.imageURL) as string | undefined;
 
               return (
                 <div key={ev.id} className="ev-card" style={cardStyle}>
@@ -373,7 +411,7 @@ const pageWrap: React.CSSProperties = {
   display: "flex",
   flex: 1,
   minHeight: "100vh",
-  background: "#ffffff",
+  background: "#f9fafb",
   fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
 };
 
