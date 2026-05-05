@@ -7,6 +7,9 @@ import {
   where,
   orderBy,
   getDocs,
+  addDoc,
+  getDoc,
+  doc,
 } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { useAuth } from "@/hooks/useAuth";
@@ -37,6 +40,8 @@ export default function CertificatesPage() {
   const [loading, setLoading] = useState(true);
   const [empty, setEmpty] = useState(false);
   const [confirmedCount, setConfirmedCount] = useState(0);
+  const [sharedIds, setSharedIds] = useState<Set<string>>(new Set());
+  const [sharingId, setSharingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (authLoading || !user) return;
@@ -96,6 +101,26 @@ export default function CertificatesPage() {
     }
 
     fetchConfirmedCount();
+
+    /* ── Check which certificates are already shared ────────────────────── */
+    async function fetchSharedPosts() {
+      try {
+        const snap = await getDocs(
+          query(
+            collection(db, "feed-posts"),
+            where("userId", "==", user!.uid),
+            where("type", "==", "certificate_share")
+          )
+        );
+        const ids = new Set<string>();
+        snap.docs.forEach((d) => {
+          const cid = d.data().certificateId;
+          if (cid) ids.add(cid);
+        });
+        setSharedIds(ids);
+      } catch { /* ignore */ }
+    }
+    fetchSharedPosts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, user]);
 
@@ -128,6 +153,41 @@ export default function CertificatesPage() {
     }
   };
 
+  /* ── Share to feed handler ───────────────────────────────────────────── */
+
+  const handleShare = async (cert: Certificate) => {
+    if (!user || sharingId) return;
+    setSharingId(cert.certificateId);
+    try {
+      const userSnap = await getDoc(doc(db, "users", user.uid));
+      const userData = userSnap.exists() ? userSnap.data() : {} as any;
+
+      await addDoc(collection(db, "feed-posts"), {
+        type: "certificate_share",
+        userId: user.uid,
+        eventTitle: cert.eventTitle,
+        eventDate: cert.eventDate,
+        organizerName: cert.organizerName,
+        pointValue: cert.pointValue,
+        studentName: userData.fullName ?? "",
+        universityName: userData.universityName ?? "",
+        departmentName: userData.departmentName ?? "",
+        avatarURL: userData.avatarURL ?? "",
+        certificateId: cert.certificateId,
+        isPublic: true,
+        createdAt: new Date().toISOString(),
+      });
+
+      setSharedIds((prev) => new Set(prev).add(cert.certificateId));
+      showToast("Certificate shared to feed!", "success");
+    } catch (err) {
+      console.error("Share error:", err);
+      showToast("Failed to share certificate.", "error");
+    } finally {
+      setSharingId(null);
+    }
+  };
+
   return (
     <>
       <main style={mainArea}>
@@ -155,6 +215,9 @@ export default function CertificatesPage() {
                 key={cert.certificateId}
                 cert={cert}
                 onDownload={handleDownload}
+                onShare={handleShare}
+                alreadyShared={sharedIds.has(cert.certificateId)}
+                sharing={sharingId === cert.certificateId}
               />
             ))}
           </div>
@@ -184,16 +247,27 @@ export default function CertificatesPage() {
 function CertificateCard({
   cert,
   onDownload,
+  onShare,
+  alreadyShared,
+  sharing,
 }: {
   cert: Certificate;
   onDownload: (id: string, title: string) => void;
+  onShare: (cert: Certificate) => void;
+  alreadyShared: boolean;
+  sharing: boolean;
 }) {
+  const issuedDate = new Date(cert.issuedAt);
+  const daysSince = (Date.now() - issuedDate.getTime()) / (1000 * 60 * 60 * 24);
+  const canShare = daysSince <= 3;
+  const expired = daysSince > 3;
+
   return (
     <div style={cardOuter}>
       {/* Top gradient banner */}
       <div style={cardTop}>
         <p style={brandLabel}>VOLUNTRY</p>
-        <p style={certLabel}>Certificate of Participation</p>
+        <p style={certLabelStyle}>Certificate of Participation</p>
         <div style={trophyWrap}>🏆</div>
       </div>
 
@@ -207,20 +281,50 @@ function CertificateCard({
 
         <p style={certIdStyle}>ID: {cert.certificateId.slice(0, 8)}</p>
 
-        <button
-          style={downloadBtn}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = "#246344";
-            e.currentTarget.style.color = "#ffffff";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "#ffffff";
-            e.currentTarget.style.color = "#246344";
-          }}
-          onClick={() => onDownload(cert.certificateId, cert.eventTitle)}
-        >
-          Download PDF
-        </button>
+        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+          <button
+            style={downloadBtn}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "#246344";
+              e.currentTarget.style.color = "#ffffff";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "#ffffff";
+              e.currentTarget.style.color = "#246344";
+            }}
+            onClick={() => onDownload(cert.certificateId, cert.eventTitle)}
+          >
+            Download PDF
+          </button>
+
+          {alreadyShared ? (
+            <button style={{ ...shareBtn, opacity: 0.5, cursor: "default" }} disabled>
+              ✓ Shared
+            </button>
+          ) : expired ? (
+            <button
+              style={{ ...shareBtn, opacity: 0.4, cursor: "not-allowed" }}
+              disabled
+              title="Sharing period expired (3 days after issue)"
+            >
+              Expired
+            </button>
+          ) : (
+            <button
+              style={shareBtn}
+              onClick={() => onShare(cert)}
+              disabled={sharing}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "#1d4ed8";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "#3b82f6";
+              }}
+            >
+              {sharing ? "Sharing…" : "📤 Share"}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -257,7 +361,7 @@ const injectedCSS = `
 
 const mainArea: React.CSSProperties = {
   flex: 1,
-  padding: "2rem 2.5rem",
+  padding: "1.5rem 1rem",
   background: "#f9fafb",
   overflowY: "auto",
 };
@@ -303,7 +407,7 @@ const brandLabel: React.CSSProperties = {
   textAlign: "left",
 };
 
-const certLabel: React.CSSProperties = {
+const certLabelStyle: React.CSSProperties = {
   margin: "2px 0 0",
   color: "rgba(255,255,255,0.8)",
   fontSize: 11,
@@ -363,8 +467,7 @@ const certIdStyle: React.CSSProperties = {
 };
 
 const downloadBtn: React.CSSProperties = {
-  display: "block",
-  width: "100%",
+  flex: 1,
   background: "#ffffff",
   border: "1px solid #246344",
   color: "#246344",
@@ -373,9 +476,22 @@ const downloadBtn: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 600,
   cursor: "pointer",
-  marginTop: 12,
   textAlign: "center",
   transition: "background 0.2s, color 0.2s",
+};
+
+const shareBtn: React.CSSProperties = {
+  flex: 1,
+  background: "#3b82f6",
+  border: "none",
+  color: "#fff",
+  borderRadius: 8,
+  padding: 8,
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: "pointer",
+  textAlign: "center",
+  transition: "background 0.2s",
 };
 
 /* ── Badge section ──────────────────────────────────────────────────────────── */

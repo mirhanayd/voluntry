@@ -1,1 +1,1 @@
-feat: mobile responsive sidebar with hamburger menu and overlay drawe
+feat: added FeedDirectorySearch.

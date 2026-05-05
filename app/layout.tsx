@@ -5,11 +5,11 @@ import Providers from "@/components/Providers";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "VolunTRY - Connect Volunteers with Opportunities",
+  title: "VolunTRY",
   description: "Connect volunteers with opportunities across Northern Cyprus",
   icons: {
-    icon: "/logo.png",
-    apple: "/logo.png",
+    icon: "/logo_3.png",
+    apple: "/logo_3.png",
   },
 };
 

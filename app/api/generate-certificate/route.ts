@@ -136,11 +136,12 @@ export async function GET(req: NextRequest) {
        CONTENT
        ═══════════════════════════════════════════════════════════════════════════ */
 
-    /* ── Logo (1000×1000 square — preserved at 1:1) ──────────────────────────── */
+    /* ── Logo (1000x221) ──────────────────────────── */
 
-    const logoSize = 28; // mm — square
+    const logoWidth = 72;
+    const logoHeight = 16;
     if (logoBase64) {
-      doc.addImage(logoBase64, "PNG", cx - logoSize / 2, 22, logoSize, logoSize);
+      doc.addImage(logoBase64, "PNG", cx - logoWidth / 2, 24, logoWidth, logoHeight);
     } else {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(28);

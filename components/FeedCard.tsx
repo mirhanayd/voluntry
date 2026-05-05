@@ -1,13 +1,15 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
+import { doc, getDoc, setDoc, deleteDoc, collection, getDocs } from "firebase/firestore";
+import { db, auth } from "@/lib/firebase";
 
 /* ── Props ───────────────────────────────────────────────────────────────────── */
 
 export interface FeedPost {
   id?: string;
-  type?: "achievement" | "new_event" | "event_completed";
+  type?: "achievement" | "new_event" | "event_completed" | "certificate_share";
   userId?: string;
   eventId?: string;
   eventTitle: string;
@@ -34,6 +36,7 @@ export interface FeedPost {
 
 interface FeedCardProps {
   post: FeedPost;
+  hideLike?: boolean;
 }
 
 /* ── Category → left-border colour mapping ───────────────────────────────────── */
@@ -97,18 +100,145 @@ function formatDate(dateStr: string): string {
   }
 }
 
+/* ── Like Button sub-component ───────────────────────────────────────────────── */
+
+function LikeButton({ postId }: { postId: string }) {
+  const [liked, setLiked] = useState(false);
+  const [count, setCount] = useState(0);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!postId) return;
+    // Get total likes count
+    getDocs(collection(db, "feed-posts", postId, "likes")).then((snap) => {
+      setCount(snap.size);
+      // Check if current user liked
+      const uid = auth.currentUser?.uid;
+      if (uid) {
+        const userLiked = snap.docs.some((d) => d.id === uid);
+        setLiked(userLiked);
+      }
+    }).catch(() => {});
+  }, [postId]);
+
+  const toggle = async () => {
+    const uid = auth.currentUser?.uid;
+    if (!uid || busy) return;
+    setBusy(true);
+    const ref = doc(db, "feed-posts", postId, "likes", uid);
+    try {
+      if (liked) {
+        await deleteDoc(ref);
+        setLiked(false);
+        setCount((c) => Math.max(0, c - 1));
+      } else {
+        await setDoc(ref, { likedAt: new Date().toISOString() });
+        setLiked(true);
+        setCount((c) => c + 1);
+      }
+    } catch (e) {
+      console.error("Like toggle failed:", e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <button onClick={toggle} style={{ ...likeBtn, color: liked ? "#ef4444" : "#9ca3af" }} disabled={busy}>
+      <span style={{ fontSize: 16, transition: "transform 0.2s", transform: liked ? "scale(1.2)" : "scale(1)" }}>
+        {liked ? "❤️" : "🤍"}
+      </span>
+      {count > 0 && <span style={{ fontSize: 12, fontWeight: 600 }}>{count}</span>}
+    </button>
+  );
+}
+
+/* ── Mini Certificate Preview ────────────────────────────────────────────────── */
+
+function CertificatePreview({ post }: { post: FeedPost }) {
+  if (!post.certificateId) return null;
+  return (
+    <div style={certPreview}>
+      <img
+        src={`/api/certificate-image?certificateId=${encodeURIComponent(post.certificateId)}`}
+        alt={`Certificate for ${post.eventTitle}`}
+        style={certImg}
+        loading="lazy"
+      />
+    </div>
+  );
+}
+
 /* ── Component ───────────────────────────────────────────────────────────────── */
 
-export default function FeedCard({ post }: FeedCardProps) {
+export default function FeedCard({ post, hideLike }: FeedCardProps) {
   const postType = post.type || "achievement";
 
   const borderColor = useMemo(() => {
     if (postType === "new_event") return "#3b82f6";
     if (postType === "event_completed") return "#f59e0b";
+    if (postType === "certificate_share") return "#8b5cf6";
     return getCategoryColor(post.departmentName);
   }, [postType, post.departmentName]);
 
-  const icon = postType === "new_event" ? "📢" : postType === "event_completed" ? "✅" : "🎉";
+  const icon = postType === "new_event" ? "📢" : postType === "event_completed" ? "✅" : postType === "certificate_share" ? "🏆" : "🎉";
+
+  /* ── Certificate Share Card ─────────────────────────────────────────── */
+  if (postType === "certificate_share") {
+    const hasAvatar = typeof post.avatarURL === "string" && post.avatarURL.trim() !== "";
+    const initial = post.studentName ? post.studentName.charAt(0).toUpperCase() : "?";
+
+    return (
+      <div style={{ ...card, borderLeft: `4px solid ${borderColor}` }}>
+        <span style={emojiCorner}>{icon}</span>
+
+        <div style={row}>
+          {hasAvatar ? (
+            <img src={post.avatarURL} alt={post.studentName || ""} style={avatarImg} />
+          ) : (
+            <div style={avatarFallback}>{initial}</div>
+          )}
+
+          <div style={contentCol}>
+            <p style={line}>
+              <span style={nameStyle}>{post.studentName}</span>
+              <span style={actionStyle}> shared a certificate</span>
+            </p>
+
+            <p style={{ ...line, color: "#246344", fontWeight: 600 }}>
+              {post.eventTitle}
+            </p>
+
+            <p style={{ ...line, color: "#6b7280", fontSize: 13 }}>
+              {post.organizerName}
+            </p>
+
+            {(post.universityName || post.departmentName) && (
+              <p style={{ ...line, color: "#9ca3af", fontSize: 12 }}>
+                {[post.universityName, post.departmentName].filter(Boolean).join(" · ")}
+              </p>
+            )}
+
+            <div style={bottomRow}>
+              <div style={badgeGroup}>
+                <span style={pointsBadge}>+{post.pointValue} pts</span>
+                <span style={{ ...certBadge, background: "#f3e8ff", color: "#7c3aed", border: "1px solid #c4b5fd" }}>🏆 Certificate</span>
+              </div>
+              <span style={timeStyle}>{relativeTime(post.createdAt)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Certificate image preview */}
+        {post.certificateId && <CertificatePreview post={post} />}
+
+        {/* Like */}
+        {!hideLike && post.id && (
+          <div style={likeRow}><LikeButton postId={post.id} /></div>
+        )}
+      </div>
+    );
+  }
 
   /* ── New Event Card ──────────────────────────────────────────────────────── */
   if (postType === "new_event") {
@@ -116,7 +246,6 @@ export default function FeedCard({ post }: FeedCardProps) {
       <div style={{ ...card, borderLeft: `4px solid ${borderColor}` }}>
         <span style={emojiCorner}>{icon}</span>
 
-        {/* Header row */}
         <div style={headerRow}>
           <div style={orgAvatarFallback}>
             {post.organizerName?.charAt(0)?.toUpperCase() || "O"}
@@ -130,7 +259,6 @@ export default function FeedCard({ post }: FeedCardProps) {
           </div>
         </div>
 
-        {/* Event preview card */}
         <div style={eventPreview}>
           {post.coverURL && (
             <img src={post.coverURL} alt={post.eventTitle} style={eventPreviewImg} />
@@ -155,15 +283,17 @@ export default function FeedCard({ post }: FeedCardProps) {
                   </span>
                 )}
               </div>
-              <Link
-                href={`/student/events/${post.eventId}`}
-                style={applyBtn}
-              >
+              <Link href={`/student/events/${post.eventId}`} style={applyBtn}>
                 View & Apply
               </Link>
             </div>
           </div>
         </div>
+
+        {/* Like */}
+        {!hideLike && post.id && (
+          <div style={likeRow}><LikeButton postId={post.id} /></div>
+        )}
       </div>
     );
   }
@@ -193,7 +323,7 @@ export default function FeedCard({ post }: FeedCardProps) {
           </h3>
 
           {post.completionNote && (
-            <p style={completionNote}>{post.completionNote}</p>
+            <p style={completionNoteStyle}>{post.completionNote}</p>
           )}
 
           <div style={completionStats}>
@@ -208,25 +338,24 @@ export default function FeedCard({ post }: FeedCardProps) {
             <span style={datePill}>📅 {formatDate(post.eventDate)}</span>
           </div>
 
-          {/* Photo gallery */}
           {post.photoURLs && post.photoURLs.length > 0 && (
             <div style={photoGrid}>
               {post.photoURLs.map((url, i) => (
-                <img
-                  key={i}
-                  src={url}
-                  alt={`Event photo ${i + 1}`}
-                  style={photoImg}
-                />
+                <img key={i} src={url} alt={`Event photo ${i + 1}`} style={photoImg} />
               ))}
             </div>
           )}
         </div>
+
+        {/* Like */}
+        {!hideLike && post.id && (
+          <div style={likeRow}><LikeButton postId={post.id} /></div>
+        )}
       </div>
     );
   }
 
-  /* ── Achievement Card (default — existing) ───────────────────────────────── */
+  /* ── Achievement Card (default) ──────────────────────────────────────────── */
   const hasAvatar =
     typeof post.avatarURL === "string" && post.avatarURL.trim() !== "";
 
@@ -238,15 +367,9 @@ export default function FeedCard({ post }: FeedCardProps) {
 
       <div style={row}>
         {hasAvatar ? (
-          <img
-            src={post.avatarURL}
-            alt={post.studentName || ""}
-            style={avatarImg}
-          />
+          <img src={post.avatarURL} alt={post.studentName || ""} style={avatarImg} />
         ) : (
-          <div style={avatarFallback}>
-            {initial}
-          </div>
+          <div style={avatarFallback}>{initial}</div>
         )}
 
         <div style={contentCol}>
@@ -274,11 +397,18 @@ export default function FeedCard({ post }: FeedCardProps) {
               <span style={pointsBadge}>+{post.pointValue} pts</span>
               <span style={certBadge}>🏆 Certificate Earned</span>
             </div>
-
             <span style={timeStyle}>{relativeTime(post.createdAt)}</span>
           </div>
         </div>
       </div>
+
+      {/* Certificate Preview */}
+      {post.certificateId && <CertificatePreview post={post} />}
+
+      {/* Like */}
+      {!hideLike && post.id && (
+        <div style={likeRow}><LikeButton postId={post.id} /></div>
+      )}
     </div>
   );
 }
@@ -290,7 +420,7 @@ const card: React.CSSProperties = {
   background: "#ffffff",
   border: "1px solid #e5e7eb",
   borderRadius: 12,
-  padding: "18px 20px",
+  padding: "14px 14px",
   marginBottom: 16,
   fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
   transition: "box-shadow 0.2s",
@@ -326,8 +456,8 @@ const headerContent: React.CSSProperties = {
 };
 
 const avatarBase: React.CSSProperties = {
-  width: 44,
-  height: 44,
+  width: 38,
+  height: 38,
   borderRadius: "50%",
   flexShrink: 0,
 };
@@ -462,7 +592,7 @@ const eventPreview: React.CSSProperties = {
 
 const eventPreviewImg: React.CSSProperties = {
   width: "100%",
-  height: 180,
+  height: 160,
   objectFit: "cover",
   display: "block",
 };
@@ -517,7 +647,7 @@ const completionContent: React.CSSProperties = {
   paddingLeft: 52,
 };
 
-const completionNote: React.CSSProperties = {
+const completionNoteStyle: React.CSSProperties = {
   margin: "0 0 12px",
   fontSize: 14,
   color: "#374151",
@@ -537,12 +667,51 @@ const photoGrid: React.CSSProperties = {
   gap: 8,
   borderRadius: 8,
   overflow: "hidden",
+  flexWrap: "wrap",
 };
 
 const photoImg: React.CSSProperties = {
-  flex: "1 1 0",
+  flex: "1 1 120px",
   minWidth: 0,
-  height: 160,
+  maxHeight: 160,
   objectFit: "cover",
   borderRadius: 8,
+};
+
+/* ── Like button ─────────────────────────────────────────────────────────── */
+
+const likeRow: React.CSSProperties = {
+  marginTop: 10,
+  paddingTop: 10,
+  borderTop: "1px solid #f3f4f6",
+  display: "flex",
+  alignItems: "center",
+};
+
+const likeBtn: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+  background: "none",
+  border: "none",
+  cursor: "pointer",
+  padding: "4px 10px",
+  borderRadius: 8,
+  transition: "background 0.15s",
+};
+
+/* ── Certificate Preview ─────────────────────────────────────────────────── */
+
+const certPreview: React.CSSProperties = {
+  marginTop: 14,
+  borderRadius: 10,
+  overflow: "hidden",
+  border: "1px solid #e5e7eb",
+  boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+};
+
+const certImg: React.CSSProperties = {
+  width: "100%",
+  height: "auto",
+  display: "block",
 };

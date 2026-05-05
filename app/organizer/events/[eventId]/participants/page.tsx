@@ -12,8 +12,7 @@ import {
   updateDoc,
   addDoc,
 } from "firebase/firestore";
-import { db, storage }                 from "@/lib/firebase";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { db }                          from "@/lib/firebase";
 import { awardPoints, generateCertificate } from "@/lib/pointsHelper";
 import ImageUpload from "@/components/ImageUpload";
 

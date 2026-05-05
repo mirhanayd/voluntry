@@ -101,6 +101,7 @@ export async function generateCertificate(
       : "";
 
   await addDoc(collection(db, "feed-posts"), {
+    type: "achievement",
     userId: uid,
     eventId,
     eventTitle: eventData.title ?? "",

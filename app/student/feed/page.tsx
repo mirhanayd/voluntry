@@ -18,7 +18,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 /* ── Component ───────────────────────────────────────────────────────────────── */
 
 export default function FeedPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { loading: authLoading } = useAuth();
   const { showToast } = useToast();
 
   const [posts, setPosts] = useState<FeedPost[]>([]);
@@ -145,15 +145,21 @@ export default function FeedPage() {
             position: relative;
             z-index: 1;
           }
+
+          @media (max-width: 768px) {
+            .feed-bg-anim { display: none; }
+          }
         `}</style>
 
         <div className="feed-content-wrapper">
           {/* Header */}
-        <div style={{ marginBottom: 24 }}>
-          <h1 style={titleStyle}>Community Feed</h1>
-          <p style={subtitleStyle}>
-            See new events, achievements, and community updates
-          </p>
+        <div style={feedHeaderStyle}>
+          <div>
+            <h1 style={titleStyle}>Community Feed</h1>
+            <p style={subtitleStyle}>
+              See new events, achievements, and community updates
+            </p>
+          </div>
         </div>
 
         {/* Feed column */}
@@ -197,7 +203,7 @@ function Skeletons() {
 
 const mainArea: React.CSSProperties = {
   flex: 1,
-  padding: "2rem 2.5rem",
+  padding: "2rem 1rem",
   background: "#f9fafb",
   overflowY: "auto",
 };
@@ -215,8 +221,18 @@ const subtitleStyle: React.CSSProperties = {
   margin: "4px 0 0",
 };
 
+const feedHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+  justifyContent: "space-between",
+  gap: 16,
+  marginBottom: 24,
+  flexWrap: "wrap",
+};
+
 const feedColumn: React.CSSProperties = {
-  maxWidth: 680,
+  width: "100%",
+  maxWidth: 580,
   margin: "0 auto",
 };
 
@@ -229,4 +245,3 @@ const skeletonCard: React.CSSProperties = {
   marginBottom: 12,
   animation: "pulse 1.5s ease-in-out infinite",
 };
-

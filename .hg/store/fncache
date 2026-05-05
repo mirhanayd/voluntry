@@ -140,3 +140,11 @@ data/components/ui/LoadingSkeleton.tsx.i
 data/constants/index.ts.i
 data/components/ui/SearchableDropdown.tsx.i
 data/components/ui/StatusBadge.tsx.i
+data/app/api/certificate-image/route.ts.i
+data/components/OrganizerHeader.tsx.i
+data/app/organizer/feed/page.tsx.i
+data/public/logo_3.png.i
+data/components/StudentHeader.tsx.i
+data/.next-dev.stderr.log.i
+data/.next-dev.stdout.log.i
+data/components/FeedDirectorySearch.tsx.i

@@ -49,7 +49,7 @@ function LoginForm() {
       if (userData.role === "admin") {
         router.push("/admin/dashboard");
       } else if (userData.role === "organizer") {
-        router.push("/organizer/dashboard");
+        router.push("/organizer/feed");
       } else {
         router.push("/student/feed");
       }
