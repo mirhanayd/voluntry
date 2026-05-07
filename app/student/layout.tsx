@@ -6,6 +6,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
     <ProtectedRoute allowedRoles={["student"]}>
       <StudentHeader />
       <div
+        className="student-content-area"
         style={{
           paddingTop: 60,
           minHeight: "100vh",
@@ -14,6 +15,15 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
       >
         {children}
       </div>
+
+      {/* Bottom nav padding for mobile */}
+      <style>{`
+        @media (max-width: 620px) {
+          .student-content-area {
+            padding-bottom: 76px;
+          }
+        }
+      `}</style>
     </ProtectedRoute>
   );
 }

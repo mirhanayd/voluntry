@@ -10,3 +10,5 @@ node_modules/
 .claude/
 tsconfig.tsbuildinfo
 docs/
+poster/
+.agents/
