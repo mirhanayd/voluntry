@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   collection,
   doc,
@@ -54,8 +55,9 @@ function formatDate(value: string) {
 }
 
 export default function StudentProfilePage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isGuest } = useAuth();
   const { showToast } = useToast();
+  const router = useRouter();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [totalEarned, setTotalEarned] = useState(0);
@@ -66,7 +68,13 @@ export default function StudentProfilePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (authLoading) return;
+    if (!authLoading && isGuest) {
+      router.replace("/student/feed");
+    }
+  }, [authLoading, isGuest, router]);
+
+  useEffect(() => {
+    if (authLoading || isGuest) return;
 
     if (!user) {
       setLoading(false);
@@ -97,7 +105,7 @@ export default function StudentProfilePage() {
             )
           ),
           getDocs(query(collection(db, "certificates"), where("uid", "==", uid))),
-          getDocs(query(collection(db, "redemptions"), where("uid", "==", uid))),
+          getDocs(query(collection(db, "redemptions"), where("userId", "==", uid))),
           getDocs(query(collection(db, "feed-posts"), where("userId", "==", uid))),
         ]);
 
@@ -200,7 +208,7 @@ export default function StudentProfilePage() {
     return () => {
       active = false;
     };
-  }, [authLoading, showToast, user]);
+  }, [authLoading, isGuest, showToast, user]);
 
   async function handleAvatarUpload(downloadURL: string) {
     if (!user) return;

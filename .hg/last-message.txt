@@ -1,1 +1,1 @@
-feat: added FeedDirectorySearch.
+Refactor: rewards system and clean up unused UI components

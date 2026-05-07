@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, query, where, getDocs, doc, getDoc, runTransaction, addDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, getDoc, runTransaction, addDoc, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -9,24 +9,54 @@ import { useConfirm } from "@/components/ConfirmModal";
 import { useToast } from "@/components/Toast";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
+import { formatDateTime } from "@/constants/index";
 
 interface Reward {
   id: string;
   title: string;
-  sponsor: string;
+  sponsorName: string;
   description: string;
-  imageUrl: string;
+  imageURL: string;
   pointCost: number;
   stock: number;
   isActive: boolean;
 }
 
+interface Redemption {
+  id: string;
+  rewardTitle: string;
+  sponsorName: string;
+  pointCost: number;
+  redeemedAt: string;
+  couponCode: string;
+  status: "pending" | "fulfilled";
+}
+
+/**
+ * Generate a unique coupon code from userId + rewardId + timestamp.
+ * Format: VTR-XXXX-XXXX (8 alphanumeric chars)
+ */
+function generateCouponCode(userId: string, rewardId: string, timestamp: string): string {
+  const raw = `${userId}-${rewardId}-${timestamp}`;
+  let hash = 0;
+  for (let i = 0; i < raw.length; i++) {
+    const char = raw.charCodeAt(i);
+    hash = ((hash << 5) - hash + char) | 0;
+  }
+  // Use absolute value and convert to base-36, pad to 8 chars
+  const code = Math.abs(hash).toString(36).toUpperCase().padStart(8, "0").slice(0, 8);
+  return `VTR-${code.slice(0, 4)}-${code.slice(4, 8)}`;
+}
+
 export default function RewardsPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isGuest } = useAuth();
   const [points, setPoints] = useState<number>(0);
   const [rewards, setRewards] = useState<Reward[]>([]);
+  const [myCoupons, setMyCoupons] = useState<Redemption[]>([]);
   const [loading, setLoading] = useState(true);
   const [redeemingId, setRedeemingId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"marketplace" | "coupons">("marketplace");
 
   const confirm = useConfirm();
   const { showToast } = useToast();
@@ -50,6 +80,19 @@ export default function RewardsPage() {
           fetchedRewards.push({ id: docSnap.id, ...docSnap.data() } as Reward);
         });
         setRewards(fetchedRewards);
+
+        // Fetch user's redeemed coupons
+        const redemptionQuery = query(
+          collection(db, "redemptions"),
+          where("userId", "==", user.uid),
+          orderBy("redeemedAt", "desc")
+        );
+        const redemptionSnap = await getDocs(redemptionQuery);
+        const fetchedCoupons: Redemption[] = [];
+        redemptionSnap.forEach((docSnap) => {
+          fetchedCoupons.push({ id: docSnap.id, ...docSnap.data() } as Redemption);
+        });
+        setMyCoupons(fetchedCoupons);
       } catch (error) {
         console.error("Error fetching rewards data:", error);
       } finally {
@@ -69,9 +112,14 @@ export default function RewardsPage() {
   const handleRedeem = async (reward: Reward) => {
     if (!user) return;
 
+    if (isGuest) {
+      showToast("Guest users can browse rewards but cannot redeem them.", "info");
+      return;
+    }
+
     const confirmed = await confirm({
       title: "Redeem Reward",
-      message: `Are you sure you want to redeem ${reward.title} for ${reward.pointCost} points?`,
+      message: `Are you sure you want to redeem "${reward.title}" for ${reward.pointCost} points?`,
       confirmLabel: "Redeem",
       destructive: false,
     });
@@ -123,14 +171,19 @@ export default function RewardsPage() {
         transaction.update(rewardRef, { stock: tStock - 1 });
       });
 
-      // After transaction success, add to redemptions
-      await addDoc(collection(db, "redemptions"), {
+      // Generate unique coupon code
+      const redeemedAt = new Date().toISOString();
+      const couponCode = generateCouponCode(user.uid, reward.id, redeemedAt);
+
+      // After transaction success, add to redemptions with coupon code
+      const redemptionRef = await addDoc(collection(db, "redemptions"), {
         userId: user.uid,
         rewardId: reward.id,
         rewardTitle: reward.title,
-        sponsorName: reward.sponsor,
+        sponsorName: reward.sponsorName,
         pointCost: reward.pointCost,
-        redeemedAt: new Date().toISOString(),
+        redeemedAt,
+        couponCode,
         status: "pending"
       });
 
@@ -142,11 +195,23 @@ export default function RewardsPage() {
         r.id === reward.id ? { ...r, stock: r.stock - 1 } : r
       ));
 
-    } catch (error: any) {
+      // Add the new coupon to the top of the list
+      setMyCoupons(prev => [{
+        id: redemptionRef.id,
+        rewardTitle: reward.title,
+        sponsorName: reward.sponsorName,
+        pointCost: reward.pointCost,
+        redeemedAt,
+        couponCode,
+        status: "pending",
+      }, ...prev]);
+
+    } catch (error: unknown) {
       console.error("Redeem error:", error);
-      if (error.message === "INSUFFICIENT_POINTS") {
+      const msg = error instanceof Error ? error.message : "";
+      if (msg === "INSUFFICIENT_POINTS") {
         showToast("You don't have enough points.", "error");
-      } else if (error.message === "OUT_OF_STOCK") {
+      } else if (msg === "OUT_OF_STOCK") {
         showToast("This reward is out of stock.", "error");
       } else {
         showToast("Failed to redeem reward. Please try again.", "error");
@@ -154,6 +219,13 @@ export default function RewardsPage() {
     } finally {
       setRedeemingId(null);
     }
+  };
+
+  const handleCopyCoupon = (code: string, id: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedId(id);
+    showToast("Coupon code copied!", "success");
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   // If still checking auth
@@ -194,6 +266,80 @@ export default function RewardsPage() {
           .animate-spin {
             animation: spin 1s linear infinite;
           }
+          .coupon-code-box {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #f9fafb;
+            border: 1px dashed #d1d5db;
+            border-radius: 8px;
+            padding: 8px 12px;
+            margin-top: 8px;
+          }
+          .coupon-code-text {
+            font-family: 'Courier New', monospace;
+            font-weight: 700;
+            font-size: 14px;
+            color: #246344;
+            letter-spacing: 1px;
+          }
+          .coupon-copy-btn {
+            background: #246344;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            white-space: nowrap;
+          }
+          .coupon-copy-btn:hover {
+            opacity: 0.85;
+          }
+          .coupon-copy-btn.copied {
+            background: #16a34a;
+          }
+          .tab-bar {
+            display: flex;
+            gap: 0;
+            margin-bottom: 24px;
+            border-bottom: 2px solid #e5e7eb;
+          }
+          .tab-btn {
+            padding: 10px 20px;
+            border: none;
+            background: none;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            color: #6b7280;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: color 0.2s, border-color 0.2s;
+          }
+          .tab-btn.active {
+            color: #246344;
+            border-bottom-color: #246344;
+          }
+          .tab-btn:hover:not(.active) {
+            color: #374151;
+          }
+          .coupon-card {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 12px;
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+            transition: box-shadow 0.2s;
+          }
+          .coupon-card:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+          }
         `}</style>
         
         {/* Page Header */}
@@ -209,77 +355,163 @@ export default function RewardsPage() {
           )}
         </header>
 
-        {/* Content */}
-        {loading ? (
-          <LoadingSkeleton type="card" rows={6} />
-        ) : rewards.length === 0 ? (
-          <EmptyState
-            emoji="🎁"
-            title="No rewards available at the moment."
-          />
-        ) : (
-          <div className="rewards-grid">
-            {rewards.map((reward) => {
-              const isOutOfStock = reward.stock === 0;
-              const notEnoughPoints = points < reward.pointCost;
-              const isRedeeming = redeemingId === reward.id;
-              const anyRedeeming = redeemingId !== null;
-              
-              let btnLabel = "Redeem";
-              let btnStyle = redeemBtnStyle;
-              
-              if (isOutOfStock) {
-                btnLabel = "Out of Stock";
-                btnStyle = disabledBtnStyle;
-              } else if (notEnoughPoints) {
-                btnLabel = "Not Enough Points";
-                btnStyle = disabledBtnStyle;
-              }
+        {/* Tab Bar */}
+        <div className="tab-bar">
+          <button
+            className={`tab-btn ${activeTab === "marketplace" ? "active" : ""}`}
+            onClick={() => setActiveTab("marketplace")}
+          >
+            🎁 Marketplace
+          </button>
+          <button
+            className={`tab-btn ${activeTab === "coupons" ? "active" : ""}`}
+            onClick={() => setActiveTab("coupons")}
+          >
+            🎟️ My Coupons {myCoupons.length > 0 && `(${myCoupons.length})`}
+          </button>
+        </div>
 
-              return (
-                <div key={reward.id} style={cardStyle}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={reward.imageUrl || "https://placehold.co/600x400?text=No+Image"} alt={reward.title} style={imageStyle} />
-                  <div style={bodyStyle}>
-                    <h3 style={cardTitleStyle}>{reward.title}</h3>
-                    <p style={sponsorStyle}>{reward.sponsor}</p>
-                    <p style={descStyle}>{reward.description}</p>
-                    
-                    <div style={dividerStyle} />
-                    
-                    <div style={bottomRowStyle}>
-                      <span style={costBadgeStyle}>⭐ {reward.pointCost} pts</span>
-                      <button 
-                        style={isRedeeming ? { ...btnStyle, opacity: 0.7 } : btnStyle}
-                        disabled={isOutOfStock || notEnoughPoints || anyRedeeming}
-                        onClick={() => handleRedeem(reward)}
-                      >
-                        {isRedeeming ? (
-                          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" strokeDasharray="32" strokeDashoffset="16" opacity="0.5" />
-                              <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
-                            </svg>
-                            Redeeming...
-                          </span>
-                        ) : (
-                          btnLabel
-                        )}
-                      </button>
+        {/* Marketplace Tab */}
+        {activeTab === "marketplace" && (
+          <>
+            {loading ? (
+              <LoadingSkeleton type="card" rows={6} />
+            ) : rewards.length === 0 ? (
+              <EmptyState
+                emoji="🎁"
+                title="No rewards available at the moment."
+              />
+            ) : (
+              <div className="rewards-grid">
+                {rewards.map((reward) => {
+                  const isOutOfStock = reward.stock === 0;
+                  const notEnoughPoints = points < reward.pointCost;
+                  const isRedeeming = redeemingId === reward.id;
+                  const anyRedeeming = redeemingId !== null;
+                  
+                  let btnLabel = "Redeem";
+                  let btnStyle = redeemBtnStyle;
+                  
+                  if (isGuest) {
+                    btnLabel = "Guest Mode";
+                    btnStyle = disabledBtnStyle;
+                  } else if (isOutOfStock) {
+                    btnLabel = "Out of Stock";
+                    btnStyle = disabledBtnStyle;
+                  } else if (notEnoughPoints) {
+                    btnLabel = "Not Enough Points";
+                    btnStyle = disabledBtnStyle;
+                  }
+
+                  return (
+                    <div key={reward.id} style={cardStyle}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={reward.imageURL || "https://placehold.co/600x400?text=No+Image"} alt={reward.title} style={imageStyle} />
+                      <div style={bodyStyle}>
+                        <h3 style={cardTitleStyle}>{reward.title}</h3>
+                        <p style={sponsorStyle}>{reward.sponsorName}</p>
+                        <p style={descStyle}>{reward.description}</p>
+                        
+                        <div style={dividerStyle} />
+                        
+                        <div style={bottomRowStyle}>
+                          <span style={costBadgeStyle}>⭐ {reward.pointCost} pts</span>
+                          <button 
+                            style={isRedeeming ? { ...btnStyle, opacity: 0.7 } : btnStyle}
+                            disabled={isGuest || isOutOfStock || notEnoughPoints || anyRedeeming}
+                            onClick={() => handleRedeem(reward)}
+                          >
+                            {isRedeeming ? (
+                              <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" strokeDasharray="32" strokeDashoffset="16" opacity="0.5" />
+                                  <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+                                </svg>
+                                Redeeming...
+                              </span>
+                            ) : (
+                              btnLabel
+                            )}
+                          </button>
+                        </div>
+                      </div>
                     </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* My Coupons Tab */}
+        {activeTab === "coupons" && (
+          <>
+            {loading ? (
+              <LoadingSkeleton type="card" rows={4} />
+            ) : myCoupons.length === 0 ? (
+              <EmptyState
+                emoji="🎟️"
+                title="No coupons yet."
+                subtitle="Redeem rewards from the marketplace to get coupon codes!"
+              />
+            ) : (
+              <>
+                {/* Summary */}
+                <div style={summaryCardStyle}>
+                  <div>
+                    <p style={summaryLabelStyle}>Total Coupons</p>
+                    <p style={summaryValueStyle}>{myCoupons.length}</p>
+                  </div>
+                  <div>
+                    <p style={summaryLabelStyle}>Total Points Spent</p>
+                    <p style={summaryValueStyle}>
+                      {myCoupons.reduce((sum, c) => sum + (c.pointCost || 0), 0)}
+                    </p>
                   </div>
                 </div>
-              );
-            })}
-          </div>
+
+                {/* Coupon List */}
+                <div>
+                  {myCoupons.map((coupon) => (
+                    <div key={coupon.id} className="coupon-card">
+                      <div style={iconWrapperStyle}>🎟️</div>
+                      <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+                        <h3 style={couponTitleStyle}>{coupon.rewardTitle}</h3>
+                        <p style={couponSponsorStyle}>{coupon.sponsorName}</p>
+                        <p style={couponDateStyle}>{formatDateTime(coupon.redeemedAt)}</p>
+                        
+                        <div style={couponMetaRow}>
+                          <span style={couponPointsBadgeStyle}>-{coupon.pointCost} pts</span>
+                          <span style={
+                            coupon.status === "pending" ? pendingBadgeStyle : fulfilledBadgeStyle
+                          }>{coupon.status === "pending" ? "Active" : "Used"}</span>
+                        </div>
+
+                        {/* Coupon Code */}
+                        <div className="coupon-code-box">
+                          <span className="coupon-code-text">{coupon.couponCode || "—"}</span>
+                          {coupon.couponCode && (
+                            <button
+                              className={`coupon-copy-btn ${copiedId === coupon.id ? "copied" : ""}`}
+                              onClick={() => handleCopyCoupon(coupon.couponCode, coupon.id)}
+                            >
+                              {copiedId === coupon.id ? "✓ Copied" : "Copy"}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </>
         )}
       </main>
   );
 }
 
 /* ── Styles ──────────────────────────────────────────────────────────────────── */
-
-
 
 const mainContent: React.CSSProperties = {
   flex: 1,
@@ -414,4 +646,95 @@ const disabledBtnStyle: React.CSSProperties = {
   background: "#f3f4f6",
   color: "#9ca3af",
   cursor: "not-allowed",
+};
+
+/* ── Coupon Tab Styles ───────────────────────────────────────────────────────── */
+
+const summaryCardStyle: React.CSSProperties = {
+  background: "#f9fafb",
+  border: "1px solid #e5e7eb",
+  borderRadius: "10px",
+  padding: "16px",
+  display: "flex",
+  gap: "32px",
+  marginBottom: "24px",
+};
+
+const summaryLabelStyle: React.CSSProperties = {
+  fontSize: "13px",
+  color: "#6b7280",
+  margin: "0 0 4px 0",
+};
+
+const summaryValueStyle: React.CSSProperties = {
+  fontSize: "24px",
+  fontWeight: 700,
+  color: "#111827",
+  margin: 0,
+};
+
+const iconWrapperStyle: React.CSSProperties = {
+  background: "#f0faf5",
+  width: "48px",
+  height: "48px",
+  borderRadius: "50%",
+  fontSize: "24px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexShrink: 0,
+};
+
+const couponTitleStyle: React.CSSProperties = {
+  fontWeight: 600,
+  color: "#111827",
+  fontSize: "15px",
+  margin: "0 0 2px 0",
+};
+
+const couponSponsorStyle: React.CSSProperties = {
+  color: "#6b7280",
+  fontSize: "13px",
+  margin: "0 0 4px 0",
+};
+
+const couponDateStyle: React.CSSProperties = {
+  color: "#9ca3af",
+  fontSize: "12px",
+  margin: "0 0 8px 0",
+};
+
+const couponMetaRow: React.CSSProperties = {
+  display: "flex",
+  gap: "8px",
+};
+
+const couponPointsBadgeStyle: React.CSSProperties = {
+  background: "#fef2f2",
+  color: "#b91c1c",
+  border: "1px solid #fca5a5",
+  borderRadius: "12px",
+  fontSize: "12px",
+  padding: "2px 8px",
+  fontWeight: 500,
+};
+
+const baseBadgeStyle: React.CSSProperties = {
+  borderRadius: "12px",
+  fontSize: "12px",
+  padding: "2px 8px",
+  fontWeight: 500,
+  textTransform: "capitalize",
+};
+
+const pendingBadgeStyle: React.CSSProperties = {
+  ...baseBadgeStyle,
+  background: "#f0faf5",
+  color: "#246344",
+};
+
+const fulfilledBadgeStyle: React.CSSProperties = {
+  ...baseBadgeStyle,
+  background: "#f3f4f6",
+  color: "#6b7280",
 };

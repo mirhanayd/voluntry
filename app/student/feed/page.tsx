@@ -151,16 +151,7 @@ export default function FeedPage() {
           }
         `}</style>
 
-        <div className="feed-content-wrapper">
-          {/* Header */}
-        <div style={feedHeaderStyle}>
-          <div>
-            <h1 style={titleStyle}>Community Feed</h1>
-            <p style={subtitleStyle}>
-              See new events, achievements, and community updates
-            </p>
-          </div>
-        </div>
+
 
         {/* Feed column */}
         <div style={feedColumn}>
@@ -180,7 +171,7 @@ export default function FeedPage() {
               <FeedCard key={post.id || post.certificateId || Math.random().toString()} post={post} />
             ))}
         </div>
-        </div>
+      
       </main>
 
     </>

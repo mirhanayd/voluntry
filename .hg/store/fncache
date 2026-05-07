@@ -148,3 +148,4 @@ data/components/StudentHeader.tsx.i
 data/.next-dev.stderr.log.i
 data/.next-dev.stdout.log.i
 data/components/FeedDirectorySearch.tsx.i
+data/app/student/profile/[userId]/page.tsx.i

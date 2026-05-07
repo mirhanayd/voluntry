@@ -34,7 +34,7 @@ interface EventData {
   galleryURLs: string[];
 }
 
-type ApplyState = "can_apply" | "already_applied" | "event_full";
+type ApplyState = "can_apply" | "already_applied" | "event_full" | "guest";
 
 /* ── Date formatter ──────────────────────────────────────────────────────────── */
 
@@ -72,7 +72,7 @@ export default function EventDetailPage() {
   const router = useRouter();
   const eventId = params.eventId as string;
 
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isGuest } = useAuth();
   const { showToast } = useToast();
 
   const [event, setEvent] = useState<EventData | null>(null);
@@ -125,6 +125,11 @@ export default function EventDetailPage() {
   useEffect(() => {
     if (authLoading || !user || !event) return;
 
+    if (isGuest) {
+      setApplyState("guest");
+      return;
+    }
+
     async function checkParticipation() {
       try {
         const q = query(
@@ -148,12 +153,17 @@ export default function EventDetailPage() {
 
     checkParticipation();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, user, event]);
+  }, [authLoading, user, event, isGuest]);
 
   /* ── Apply handler ─────────────────────────────────────────────────────────── */
 
   const handleApply = async () => {
     if (!user || !event || applying) return;
+
+    if (isGuest) {
+      showToast("Guest users can view events but cannot apply.", "info");
+      return;
+    }
 
     setApplying(true);
     try {
@@ -342,6 +352,11 @@ export default function EventDetailPage() {
               {applyState === "event_full" && (
                 <button disabled style={btnFull}>
                   Event is Full
+                </button>
+              )}
+              {applyState === "guest" && (
+                <button disabled style={btnGuest}>
+                  Guest Mode - View Only
                 </button>
               )}
               {applyState === "can_apply" && (
@@ -628,6 +643,14 @@ const btnFull: React.CSSProperties = {
   ...btnBase,
   background: "#f3f4f6",
   color: "#9ca3af",
+  cursor: "default",
+};
+
+const btnGuest: React.CSSProperties = {
+  ...btnBase,
+  background: "#f9fafb",
+  color: "#6b7280",
+  border: "1px solid #d1d5db",
   cursor: "default",
 };
 

@@ -106,6 +106,7 @@ function LikeButton({ postId }: { postId: string }) {
   const [liked, setLiked] = useState(false);
   const [count, setCount] = useState(0);
   const [busy, setBusy] = useState(false);
+  const isGuest = auth.currentUser?.isAnonymous ?? false;
 
   useEffect(() => {
     if (!postId) return;
@@ -122,8 +123,9 @@ function LikeButton({ postId }: { postId: string }) {
   }, [postId]);
 
   const toggle = async () => {
-    const uid = auth.currentUser?.uid;
-    if (!uid || busy) return;
+    const currentUser = auth.currentUser;
+    const uid = currentUser?.uid;
+    if (!uid || currentUser?.isAnonymous || busy) return;
     setBusy(true);
     const ref = doc(db, "feed-posts", postId, "likes", uid);
     try {
@@ -144,7 +146,17 @@ function LikeButton({ postId }: { postId: string }) {
   };
 
   return (
-    <button onClick={toggle} style={{ ...likeBtn, color: liked ? "#ef4444" : "#9ca3af" }} disabled={busy}>
+    <button
+      onClick={toggle}
+      style={{
+        ...likeBtn,
+        color: liked ? "#ef4444" : "#9ca3af",
+        cursor: isGuest ? "not-allowed" : likeBtn.cursor,
+        opacity: isGuest ? 0.65 : 1,
+      }}
+      disabled={busy || isGuest}
+      title={isGuest ? "Guest users can view posts only." : undefined}
+    >
       <span style={{ fontSize: 16, transition: "transform 0.2s", transform: liked ? "scale(1.2)" : "scale(1)" }}>
         {liked ? "❤️" : "🤍"}
       </span>
@@ -173,6 +185,7 @@ function CertificatePreview({ post }: { post: FeedPost }) {
 
 export default function FeedCard({ post, hideLike }: FeedCardProps) {
   const postType = post.type || "achievement";
+  const isGuest = auth.currentUser?.isAnonymous ?? false;
 
   const borderColor = useMemo(() => {
     if (postType === "new_event") return "#3b82f6";
@@ -284,7 +297,7 @@ export default function FeedCard({ post, hideLike }: FeedCardProps) {
                 )}
               </div>
               <Link href={`/student/events/${post.eventId}`} style={applyBtn}>
-                View & Apply
+                {isGuest ? "View Details" : "View & Apply"}
               </Link>
             </div>
           </div>

@@ -12,7 +12,7 @@ import FeedDirectorySearch from "@/components/FeedDirectorySearch";
 export default function StudentHeader() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, isGuest } = useAuth();
 
   const [avatarURL, setAvatarURL] = useState<string | null>(null);
   const [fullName, setFullName] = useState("");
@@ -44,8 +44,8 @@ export default function StudentHeader() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [dropdownOpen]);
 
-  const displayName = user ? fullName : "";
-  const displayAvatarURL = user ? avatarURL : null;
+  const displayName = user ? (isGuest ? "Guest User" : fullName) : "";
+  const displayAvatarURL = user && !isGuest ? avatarURL : null;
 
   const initials =
     displayName
@@ -62,11 +62,13 @@ export default function StudentHeader() {
     { label: "Rewards", href: "/student/rewards" },
   ];
 
-  const dropdownItems = [
-    { label: "Profile", href: "/student/profile" },
-    { label: "My Applications", href: "/student/my-applications" },
-    { label: "Certificates", href: "/student/certificates" },
-  ];
+  const dropdownItems = isGuest
+    ? []
+    : [
+        { label: "Profile", href: "/student/profile" },
+        { label: "My Applications", href: "/student/my-applications" },
+        { label: "Certificates", href: "/student/certificates" },
+      ];
 
   async function handleSignOut() {
     try {
@@ -507,7 +509,7 @@ export default function StudentHeader() {
                   );
                 })}
 
-                <div className="sh-dropdown-divider" />
+                {dropdownItems.length > 0 && <div className="sh-dropdown-divider" />}
 
                 <button
                   className="sh-dropdown-item signout"

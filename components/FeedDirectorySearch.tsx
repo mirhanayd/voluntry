@@ -49,7 +49,11 @@ function buildDirectoryEntry(id: string, data: DocumentData): DirectoryEntry | n
   const role = asString(data.role);
   const status = asString(data.status);
 
-  if (status !== "approved" || (role !== "student" && role !== "organizer")) {
+  if (
+    data.isGuest === true ||
+    status !== "approved" ||
+    (role !== "student" && role !== "organizer")
+  ) {
     return null;
   }
 
