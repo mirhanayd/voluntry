@@ -15,6 +15,7 @@ import {
 import { db }                          from "@/lib/firebase";
 import { awardPoints, generateCertificate } from "@/lib/pointsHelper";
 import ImageUpload from "@/components/ImageUpload";
+import { resolveOrganizerFromEventData } from "@/lib/clientProfiles";
 
 /* ── Types ─────────────────────────────────────────────────────────────────── */
 
@@ -24,6 +25,8 @@ interface EventData {
   pointValue: number;
   status: string;
   organizerName?: string;
+  organizerId?: string;
+  organizerAvatarURL?: string;
 }
 
 interface ParticipantRow {
@@ -69,7 +72,15 @@ export default function ParticipantsPage() {
           setLoading(false);
           return;
         }
-        const evData = eventSnap.data() as EventData;
+        const rawEventData = eventSnap.data() as EventData;
+        const organizer = await resolveOrganizerFromEventData(rawEventData);
+        const evData: EventData = {
+          ...rawEventData,
+          organizerId: organizer.id || rawEventData.organizerId,
+          organizerName: organizer.name,
+          organizerAvatarURL:
+            organizer.avatarURL || rawEventData.organizerAvatarURL || "",
+        };
         setEvent(evData);
 
         // Participations
@@ -206,7 +217,9 @@ export default function ParticipantsPage() {
         eventId,
         eventTitle: event.title,
         eventDate: event.date,
-        organizerName: event.organizerName || "Organizer",
+        organizerName: event.organizerName || "Organization",
+        organizerId: event.organizerId || "",
+        organizerAvatarURL: event.organizerAvatarURL || "",
         pointValue: event.pointValue,
         participantCount: confirmedCount,
         completionNote: shareNote.trim(),

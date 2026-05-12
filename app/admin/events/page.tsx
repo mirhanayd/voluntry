@@ -13,11 +13,14 @@ import { db } from "@/lib/firebase";
 import { useToast } from "@/components/Toast";
 import { useConfirm } from "@/components/ConfirmModal";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { resolveOrganizerFromEventData } from "@/lib/clientProfiles";
 
 interface EventRow {
   id: string;
   title: string;
-  organizer: string;
+  organizerName?: string;
+  organizerId?: string;
+  organizerAvatarURL?: string;
   date: string;
   location: string;
   pointValue: number;
@@ -41,8 +44,19 @@ export default function EventAuditPage() {
     setLoading(true);
     try {
       const snap = await getDocs(collection(db, "events"));
-      const rows = snap.docs.map(
-        (d) => ({ id: d.id, ...d.data() } as EventRow)
+      const rows = await Promise.all(
+        snap.docs.map(async (d) => {
+          const data = d.data();
+          const organizer = await resolveOrganizerFromEventData(data);
+          return {
+            id: d.id,
+            ...data,
+            organizerId: organizer.id || data.organizerId || "",
+            organizerName: organizer.name,
+            organizerAvatarURL:
+              organizer.avatarURL || data.organizerAvatarURL || "",
+          } as EventRow;
+        })
       );
       rows.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
       setEvents(rows);
@@ -67,18 +81,30 @@ export default function EventAuditPage() {
     });
     if (!confirmed) return;
     try {
-      await updateDoc(doc(db, "events", id), { status: "published" });
-
-      // Create new_event feed post
-      const eventSnap = await getDoc(doc(db, "events", id));
+      const eventRef = doc(db, "events", id);
+      const eventSnap = await getDoc(eventRef);
       if (eventSnap.exists()) {
         const ev = eventSnap.data();
+        const organizer = await resolveOrganizerFromEventData(ev);
+        const organizerId = organizer.id || ev.organizerId || "";
+        const organizerAvatarURL = organizer.avatarURL || ev.organizerAvatarURL || "";
+
+        await updateDoc(eventRef, {
+          status: "published",
+          organizerId,
+          organizerName: organizer.name,
+          organizerAvatarURL,
+        });
+
+        // Create new_event feed post
         await addDoc(collection(db, "feed-posts"), {
           type: "new_event",
           eventId: id,
           eventTitle: ev.title || "",
           eventDate: ev.date || "",
-          organizerName: ev.organizerName || "",
+          organizerId,
+          organizerName: organizer.name,
+          organizerAvatarURL,
           pointValue: ev.pointValue || 0,
           coverURL: ev.coverURL || "",
           location: ev.location || "",
@@ -209,7 +235,7 @@ export default function EventAuditPage() {
                 <Fragment key={ev.id}>
                   <tr>
                     <td style={td}>{ev.title}</td>
-                    <td style={td}>{ev.organizer || "—"}</td>
+                    <td style={td}>{ev.organizerName || "—"}</td>
                     <td style={td}>{ev.date || "—"}</td>
                     <td style={td}>{ev.location || "—"}</td>
                     <td style={td}>{ev.pointValue ?? "—"}</td>

@@ -2,8 +2,9 @@
 
 import React, { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
-import { doc, getDoc, setDoc, deleteDoc, collection, getDocs } from "firebase/firestore";
+import { doc, setDoc, deleteDoc, collection, getDocs } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
+import { asString, isOrganizerNamePlaceholder } from "@/lib/profileNames";
 
 /* ── Props ───────────────────────────────────────────────────────────────────── */
 
@@ -15,6 +16,8 @@ export interface FeedPost {
   eventTitle: string;
   eventDate: string;
   organizerName: string;
+  organizerId?: string;
+  organizerAvatarURL?: string;
   pointValue: number;
   studentName?: string;
   universityName?: string;
@@ -106,7 +109,7 @@ function LikeButton({ postId }: { postId: string }) {
   const [liked, setLiked] = useState(false);
   const [count, setCount] = useState(0);
   const [busy, setBusy] = useState(false);
-  const isGuest = auth.currentUser?.isAnonymous ?? false;
+
 
   useEffect(() => {
     if (!postId) return;
@@ -125,7 +128,7 @@ function LikeButton({ postId }: { postId: string }) {
   const toggle = async () => {
     const currentUser = auth.currentUser;
     const uid = currentUser?.uid;
-    if (!uid || currentUser?.isAnonymous || busy) return;
+    if (!uid || busy) return;
     setBusy(true);
     const ref = doc(db, "feed-posts", postId, "likes", uid);
     try {
@@ -151,11 +154,9 @@ function LikeButton({ postId }: { postId: string }) {
       style={{
         ...likeBtn,
         color: liked ? "#ef4444" : "#9ca3af",
-        cursor: isGuest ? "not-allowed" : likeBtn.cursor,
-        opacity: isGuest ? 0.65 : 1,
       }}
-      disabled={busy || isGuest}
-      title={isGuest ? "Guest users can view posts only." : undefined}
+      disabled={busy}
+      title={undefined}
     >
       <span style={{ fontSize: 16, transition: "transform 0.2s", transform: liked ? "scale(1.2)" : "scale(1)" }}>
         {liked ? "❤️" : "🤍"}
@@ -181,11 +182,21 @@ function CertificatePreview({ post }: { post: FeedPost }) {
   );
 }
 
+function profileHref(userId?: string) {
+  const id = asString(userId);
+  return id ? `/profile/${encodeURIComponent(id)}` : undefined;
+}
+
+function organizerNameForDisplay(name: unknown) {
+  const value = asString(name);
+  return isOrganizerNamePlaceholder(value) ? "Organization" : value;
+}
+
 /* ── Component ───────────────────────────────────────────────────────────────── */
 
 export default function FeedCard({ post, hideLike }: FeedCardProps) {
   const postType = post.type || "achievement";
-  const isGuest = auth.currentUser?.isAnonymous ?? false;
+
 
   const borderColor = useMemo(() => {
     if (postType === "new_event") return "#3b82f6";
@@ -200,21 +211,37 @@ export default function FeedCard({ post, hideLike }: FeedCardProps) {
   if (postType === "certificate_share") {
     const hasAvatar = typeof post.avatarURL === "string" && post.avatarURL.trim() !== "";
     const initial = post.studentName ? post.studentName.charAt(0).toUpperCase() : "?";
+    const studentProfileHref = profileHref(post.userId);
+    const organizerProfileHref = profileHref(post.organizerId);
+    const organizerName = organizerNameForDisplay(post.organizerName);
+    const studentAvatar = hasAvatar ? (
+      <img src={post.avatarURL} alt={post.studentName || ""} style={avatarImg} />
+    ) : (
+      <div style={avatarFallback}>{initial}</div>
+    );
 
     return (
       <div style={{ ...card, borderLeft: `4px solid ${borderColor}` }}>
         <span style={emojiCorner}>{icon}</span>
 
         <div style={row}>
-          {hasAvatar ? (
-            <img src={post.avatarURL} alt={post.studentName || ""} style={avatarImg} />
+          {studentProfileHref ? (
+            <Link href={studentProfileHref} style={profileAvatarLink}>
+              {studentAvatar}
+            </Link>
           ) : (
-            <div style={avatarFallback}>{initial}</div>
+            studentAvatar
           )}
 
           <div style={contentCol}>
             <p style={line}>
-              <span style={nameStyle}>{post.studentName}</span>
+              {studentProfileHref ? (
+                <Link href={studentProfileHref} style={profileNameLink}>
+                  {post.studentName}
+                </Link>
+              ) : (
+                <span style={nameStyle}>{post.studentName}</span>
+              )}
               <span style={actionStyle}> shared a certificate</span>
             </p>
 
@@ -223,7 +250,13 @@ export default function FeedCard({ post, hideLike }: FeedCardProps) {
             </p>
 
             <p style={{ ...line, color: "#6b7280", fontSize: 13 }}>
-              {post.organizerName}
+              {organizerProfileHref ? (
+                <Link href={organizerProfileHref} style={organizerLineLink}>
+                  {organizerName}
+                </Link>
+              ) : (
+                organizerName
+              )}
             </p>
 
             {(post.universityName || post.departmentName) && (
@@ -255,17 +288,38 @@ export default function FeedCard({ post, hideLike }: FeedCardProps) {
 
   /* ── New Event Card ──────────────────────────────────────────────────────── */
   if (postType === "new_event") {
+    const organizerName = organizerNameForDisplay(post.organizerName);
+    const organizerProfileHref = profileHref(post.organizerId);
+    const organizerAvatarURL = asString(post.organizerAvatarURL);
+    const organizerAvatar = organizerAvatarURL ? (
+      <img src={organizerAvatarURL} alt={organizerName} style={orgAvatarImg} />
+    ) : (
+      <div style={orgAvatarFallback}>
+        {organizerName.charAt(0).toUpperCase() || "O"}
+      </div>
+    );
+
     return (
       <div style={{ ...card, borderLeft: `4px solid ${borderColor}` }}>
         <span style={emojiCorner}>{icon}</span>
 
         <div style={headerRow}>
-          <div style={orgAvatarFallback}>
-            {post.organizerName?.charAt(0)?.toUpperCase() || "O"}
-          </div>
+          {organizerProfileHref ? (
+            <Link href={organizerProfileHref} style={profileAvatarLink}>
+              {organizerAvatar}
+            </Link>
+          ) : (
+            organizerAvatar
+          )}
           <div style={headerContent}>
             <p style={line}>
-              <span style={nameStyle}>{post.organizerName}</span>
+              {organizerProfileHref ? (
+                <Link href={organizerProfileHref} style={profileNameLink}>
+                  {organizerName}
+                </Link>
+              ) : (
+                <span style={nameStyle}>{organizerName}</span>
+              )}
               <span style={actionStyle}> published a new event</span>
             </p>
             <span style={timeStyle}>{relativeTime(post.createdAt)}</span>
@@ -297,7 +351,7 @@ export default function FeedCard({ post, hideLike }: FeedCardProps) {
                 )}
               </div>
               <Link href={`/student/events/${post.eventId}`} style={applyBtn}>
-                {isGuest ? "View Details" : "View & Apply"}
+                {"View & Apply"}
               </Link>
             </div>
           </div>
@@ -313,17 +367,38 @@ export default function FeedCard({ post, hideLike }: FeedCardProps) {
 
   /* ── Event Completed Card ────────────────────────────────────────────────── */
   if (postType === "event_completed") {
+    const organizerName = organizerNameForDisplay(post.organizerName);
+    const organizerProfileHref = profileHref(post.organizerId);
+    const organizerAvatarURL = asString(post.organizerAvatarURL);
+    const organizerAvatar = organizerAvatarURL ? (
+      <img src={organizerAvatarURL} alt={organizerName} style={orgAvatarImg} />
+    ) : (
+      <div style={orgAvatarFallback}>
+        {organizerName.charAt(0).toUpperCase() || "O"}
+      </div>
+    );
+
     return (
       <div style={{ ...card, borderLeft: `4px solid ${borderColor}` }}>
         <span style={emojiCorner}>{icon}</span>
 
         <div style={headerRow}>
-          <div style={orgAvatarFallback}>
-            {post.organizerName?.charAt(0)?.toUpperCase() || "O"}
-          </div>
+          {organizerProfileHref ? (
+            <Link href={organizerProfileHref} style={profileAvatarLink}>
+              {organizerAvatar}
+            </Link>
+          ) : (
+            organizerAvatar
+          )}
           <div style={headerContent}>
             <p style={line}>
-              <span style={nameStyle}>{post.organizerName}</span>
+              {organizerProfileHref ? (
+                <Link href={organizerProfileHref} style={profileNameLink}>
+                  {organizerName}
+                </Link>
+              ) : (
+                <span style={nameStyle}>{organizerName}</span>
+              )}
               <span style={actionStyle}> completed an event</span>
             </p>
             <span style={timeStyle}>{relativeTime(post.createdAt)}</span>
@@ -373,21 +448,37 @@ export default function FeedCard({ post, hideLike }: FeedCardProps) {
     typeof post.avatarURL === "string" && post.avatarURL.trim() !== "";
 
   const initial = post.studentName ? post.studentName.charAt(0).toUpperCase() : "?";
+  const studentProfileHref = profileHref(post.userId);
+  const organizerProfileHref = profileHref(post.organizerId);
+  const organizerName = organizerNameForDisplay(post.organizerName);
+  const studentAvatar = hasAvatar ? (
+    <img src={post.avatarURL} alt={post.studentName || ""} style={avatarImg} />
+  ) : (
+    <div style={avatarFallback}>{initial}</div>
+  );
 
   return (
     <div style={{ ...card, borderLeft: `4px solid ${borderColor}` }}>
       <span style={emojiCorner}>{icon}</span>
 
       <div style={row}>
-        {hasAvatar ? (
-          <img src={post.avatarURL} alt={post.studentName || ""} style={avatarImg} />
+        {studentProfileHref ? (
+          <Link href={studentProfileHref} style={profileAvatarLink}>
+            {studentAvatar}
+          </Link>
         ) : (
-          <div style={avatarFallback}>{initial}</div>
+          studentAvatar
         )}
 
         <div style={contentCol}>
           <p style={line}>
-            <span style={nameStyle}>{post.studentName}</span>
+            {studentProfileHref ? (
+              <Link href={studentProfileHref} style={profileNameLink}>
+                {post.studentName}
+              </Link>
+            ) : (
+              <span style={nameStyle}>{post.studentName}</span>
+            )}
             <span style={actionStyle}> completed an event</span>
           </p>
 
@@ -396,7 +487,13 @@ export default function FeedCard({ post, hideLike }: FeedCardProps) {
           </p>
 
           <p style={{ ...line, color: "#6b7280", fontSize: 13 }}>
-            {post.organizerName}
+            {organizerProfileHref ? (
+              <Link href={organizerProfileHref} style={organizerLineLink}>
+                {organizerName}
+              </Link>
+            ) : (
+              organizerName
+            )}
           </p>
 
           {(post.universityName || post.departmentName) && (
@@ -480,6 +577,14 @@ const avatarImg: React.CSSProperties = {
   objectFit: "cover",
 };
 
+const orgAvatarImg: React.CSSProperties = {
+  width: 40,
+  height: 40,
+  borderRadius: "50%",
+  objectFit: "cover",
+  flexShrink: 0,
+};
+
 const avatarFallback: React.CSSProperties = {
   ...avatarBase,
   background: "#e5e7eb",
@@ -522,6 +627,24 @@ const line: React.CSSProperties = {
 const nameStyle: React.CSSProperties = {
   color: "#111827",
   fontWeight: 700,
+};
+
+const profileAvatarLink: React.CSSProperties = {
+  display: "inline-flex",
+  flexShrink: 0,
+  borderRadius: "50%",
+  textDecoration: "none",
+};
+
+const profileNameLink: React.CSSProperties = {
+  ...nameStyle,
+  textDecoration: "none",
+};
+
+const organizerLineLink: React.CSSProperties = {
+  color: "#6b7280",
+  textDecoration: "none",
+  fontWeight: 600,
 };
 
 const actionStyle: React.CSSProperties = {

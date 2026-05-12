@@ -4,6 +4,7 @@ import { jsPDF } from "jspdf";
 import QRCode from "qrcode";
 import fs from "fs";
 import path from "path";
+import { resolveCertificateOrganizerName } from "@/lib/serverProfiles";
 
 /* ── GET /api/generate-certificate?certificateId=xxx ─────────────────────────── */
 
@@ -48,7 +49,7 @@ export async function GET(req: NextRequest) {
     const studentName: string = cert.studentName ?? "";
     const universityName: string = cert.universityName ?? "";
     const eventTitle: string = cert.eventTitle ?? "";
-    const organizerName: string = cert.organizerName ?? "";
+    const organizerName = await resolveCertificateOrganizerName(cert);
     const eventDate: string = cert.eventDate ?? "";
     const pointValue: number = cert.pointValue ?? 0;
     const issuedAt: string = cert.issuedAt ?? "";
@@ -316,10 +317,12 @@ export async function GET(req: NextRequest) {
         "Content-Disposition": `attachment; filename="VolunTRY_Certificate_${shortId}.pdf"`,
       },
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("generate-certificate error:", err);
+    const message =
+      err instanceof Error ? err.message : "Failed to generate certificate.";
     return NextResponse.json(
-      { error: err.message || "Failed to generate certificate." },
+      { error: message },
       { status: 500 }
     );
   }

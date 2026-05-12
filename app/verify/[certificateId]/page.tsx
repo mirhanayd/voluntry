@@ -2,6 +2,7 @@ import React from "react";
 import { adminDb } from "@/lib/firebaseAdmin";
 import Link from "next/link";
 import { Metadata } from "next";
+import { resolveCertificateOrganizerName } from "@/lib/serverProfiles";
 
 type VerifyPageProps = {
   params: Promise<{ certificateId: string }>;
@@ -20,11 +21,13 @@ export default async function VerifyCertificatePage({ params }: VerifyPageProps)
 
   let certData = null;
   let isValid = false;
+  let organizerName = "";
 
   try {
     const certSnap = await adminDb.collection("certificates").doc(certificateId).get();
     if (certSnap.exists) {
       certData = certSnap.data();
+      organizerName = await resolveCertificateOrganizerName(certData ?? {});
       isValid = true;
     }
   } catch (err) {
@@ -84,7 +87,7 @@ export default async function VerifyCertificatePage({ params }: VerifyPageProps)
               </div>
               <div style={detailRow}>
                 <span style={detailLabel}>Organized By</span>
-                <span style={detailValue}>{certData.organizerName}</span>
+                <span style={detailValue}>{organizerName}</span>
               </div>
               <div style={detailRow}>
                 <span style={detailLabel}>Event Date</span>

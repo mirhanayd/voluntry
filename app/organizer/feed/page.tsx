@@ -16,6 +16,7 @@ import { useToast } from "@/components/Toast";
 import FeedCard, { type FeedPost } from "@/components/FeedCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import FeedDirectorySearch from "@/components/FeedDirectorySearch";
+import { hydrateFeedPosts } from "@/lib/feedHydration";
 
 /* Component */
 
@@ -52,7 +53,7 @@ export default function OrganizerFeedPage() {
               ...data,
             } as FeedPost;
           });
-          setPosts(items);
+          setPosts(await hydrateFeedPosts(items));
           setEmpty(false);
         }
       } catch (err) {

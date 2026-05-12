@@ -2,7 +2,7 @@
 
 import { useState, Suspense } from "react";
 import { FirebaseError } from "firebase/app";
-import { signInAnonymously, signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -22,7 +22,7 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [guestLoading, setGuestLoading] = useState(false);
+
   const [showPendingPopup, setShowPendingPopup] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -77,40 +77,7 @@ function LoginForm() {
     }
   };
 
-  const handleGuestLogin = async () => {
-    setError("");
-    setGuestLoading(true);
 
-    try {
-      const { user } = await signInAnonymously(auth);
-      const token = await user.getIdToken();
-      const response = await fetch("/api/guest-user", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({}));
-        console.error("Guest API error:", response.status, body);
-        throw new Error(body?.error || "Failed to create guest profile.");
-      }
-
-      router.push("/student/feed");
-    } catch (err: unknown) {
-      console.error("Guest sign-in error:", err);
-      await signOut(auth).catch(() => {});
-      if (getFirebaseErrorCode(err) === "auth/operation-not-allowed") {
-        setError("Guest sign-in is not enabled. Please contact an administrator.");
-      } else {
-        const msg = err instanceof Error ? err.message : "Guest sign-in failed. Please try again.";
-        setError(msg);
-      }
-    } finally {
-      setGuestLoading(false);
-    }
-  };
 
   return (
     <div className={styles.page}>
@@ -198,21 +165,14 @@ function LoginForm() {
 
             <button
               type="submit"
-              disabled={loading || guestLoading}
+              disabled={loading}
               className={styles.button}
             >
               {loading ? "Signing in..." : "Sign In"}
             </button>
           </form>
 
-          <button
-            type="button"
-            disabled={loading || guestLoading}
-            className={styles.guestButton}
-            onClick={handleGuestLogin}
-          >
-            {guestLoading ? "Opening guest mode..." : "Guest User"}
-          </button>
+
 
           <p className={styles.registerText}>
             You don&apos;t have an account?{" "}

@@ -13,7 +13,7 @@ const ACTIVITY_EVENTS = ["mousemove", "keydown", "mousedown", "touchstart"];
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<UserRole | null>(null);
-  const [isGuest, setIsGuest] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
@@ -40,19 +40,15 @@ export function useAuth() {
           if (userDoc.exists()) {
             const data = userDoc.data();
             setRole(data.role as UserRole);
-            setIsGuest(Boolean(data.isGuest) || firebaseUser.isAnonymous);
           } else {
             setRole(null);
-            setIsGuest(firebaseUser.isAnonymous);
           }
         } catch {
           setRole(null);
-          setIsGuest(firebaseUser.isAnonymous);
         }
       } else {
         setUser(null);
         setRole(null);
-        setIsGuest(false);
       }
       setLoading(false);
     });
@@ -84,5 +80,5 @@ export function useAuth() {
     };
   }, [user, resetTimer]);
 
-  return { user, role, loading, isGuest };
+  return { user, role, loading };
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { collection, addDoc } from "firebase/firestore";
+import { collection, addDoc, doc, getDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import { useAuth } from "@/hooks/useAuth";
@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/useToast";
 import { useRouter } from "next/navigation";
 import ImageUpload from "@/components/ImageUpload";
 import { DEPARTMENT_OPTIONS } from "@/constants/index";
+import { asString, getOrganizerDisplayName } from "@/lib/profileNames";
 
 export default function CreateEventPage() {
   const { user, loading: authLoading } = useAuth();
@@ -88,6 +89,14 @@ export default function CreateEventPage() {
 
     setLoading(true);
     try {
+      const organizerSnap = await getDoc(doc(db, "users", user!.uid));
+      const organizerData = organizerSnap.exists() ? organizerSnap.data() : null;
+      const organizerName = getOrganizerDisplayName(
+        organizerData,
+        user!.displayName || "Organization"
+      );
+      const organizerAvatarURL = asString(organizerData?.avatarURL);
+
       // Create Firestore doc with coverURL (image already uploaded via ImageUpload)
       await addDoc(collection(db, "events"), {
         title: form.title.trim(),
@@ -101,7 +110,8 @@ export default function CreateEventPage() {
         coverURL,
         galleryURLs,
         organizerId: user!.uid,
-        organizerName: user!.displayName || "Organizer",
+        organizerName,
+        organizerAvatarURL,
         status: "pending_approval",
         createdAt: new Date().toISOString(),
         currentParticipants: 0,
@@ -109,7 +119,7 @@ export default function CreateEventPage() {
 
       showToast("Event submitted for approval!", "success");
       router.push("/organizer/events");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to create event:", err);
       setError("Failed to create event. Please try again.");
     } finally {

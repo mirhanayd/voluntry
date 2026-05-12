@@ -14,6 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/components/Toast";
 import FeedCard, { type FeedPost } from "@/components/FeedCard";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { hydrateFeedPosts } from "@/lib/feedHydration";
 
 /* ── Component ───────────────────────────────────────────────────────────────── */
 
@@ -50,7 +51,7 @@ export default function FeedPage() {
               ...data,
             } as FeedPost;
           });
-          setPosts(items);
+          setPosts(await hydrateFeedPosts(items));
           setEmpty(false);
         }
       } catch (err) {

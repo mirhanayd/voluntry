@@ -18,13 +18,18 @@ import BadgeCard from "@/components/BadgeCard";
 import { formatDate } from "@/constants/index";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
+import { resolveOrganizerForEvent } from "@/lib/clientProfiles";
+import { asString, isOrganizerNamePlaceholder } from "@/lib/profileNames";
 
 /* ── Types ───────────────────────────────────────────────────────────────────── */
 
 interface Certificate {
   certificateId: string;
+  eventId: string;
   eventTitle: string;
   organizerName: string;
+  organizerId?: string;
+  organizerAvatarURL?: string;
   eventDate: string;
   pointValue: number;
   issuedAt: string;
@@ -42,6 +47,11 @@ export default function CertificatesPage() {
   const [confirmedCount, setConfirmedCount] = useState(0);
   const [sharedIds, setSharedIds] = useState<Set<string>>(new Set());
   const [sharingId, setSharingId] = useState<string | null>(null);
+  const [currentTime, setCurrentTime] = useState<number | null>(null);
+
+  useEffect(() => {
+    setCurrentTime(Date.now());
+  }, []);
 
   useEffect(() => {
     if (authLoading || !user) return;
@@ -60,17 +70,48 @@ export default function CertificatesPage() {
           setEmpty(true);
           setCerts([]);
         } else {
-          const items: Certificate[] = snap.docs.map((d) => {
+          const rawItems: Certificate[] = snap.docs.map((d) => {
             const data = d.data();
             return {
               certificateId: data.certificateId ?? d.id,
+              eventId: data.eventId ?? "",
               eventTitle: data.eventTitle ?? "",
               organizerName: data.organizerName ?? "",
+              organizerId: data.organizerId ?? "",
+              organizerAvatarURL: data.organizerAvatarURL ?? "",
               eventDate: data.eventDate ?? "",
               pointValue: data.pointValue ?? 0,
               issuedAt: data.issuedAt ?? "",
             };
           });
+          const items = await Promise.all(
+            rawItems.map(async (cert) => {
+              if (
+                !cert.eventId ||
+                (!isOrganizerNamePlaceholder(cert.organizerName) &&
+                  cert.organizerId &&
+                  cert.organizerAvatarURL)
+              ) {
+                return {
+                  ...cert,
+                  organizerName: isOrganizerNamePlaceholder(cert.organizerName)
+                    ? "Organization"
+                    : cert.organizerName,
+                };
+              }
+
+              const organizer = await resolveOrganizerForEvent(cert.eventId);
+              return {
+                ...cert,
+                organizerName: isOrganizerNamePlaceholder(cert.organizerName)
+                  ? organizer.name
+                  : cert.organizerName,
+                organizerId: asString(cert.organizerId) || organizer.id,
+                organizerAvatarURL:
+                  asString(cert.organizerAvatarURL) || organizer.avatarURL,
+              };
+            })
+          );
           setCerts(items);
           setEmpty(false);
         }
@@ -160,14 +201,17 @@ export default function CertificatesPage() {
     setSharingId(cert.certificateId);
     try {
       const userSnap = await getDoc(doc(db, "users", user.uid));
-      const userData = userSnap.exists() ? userSnap.data() : {} as any;
+      const userData = userSnap.exists() ? userSnap.data() : {};
 
       await addDoc(collection(db, "feed-posts"), {
         type: "certificate_share",
         userId: user.uid,
+        eventId: cert.eventId,
         eventTitle: cert.eventTitle,
         eventDate: cert.eventDate,
         organizerName: cert.organizerName,
+        organizerId: cert.organizerId || "",
+        organizerAvatarURL: cert.organizerAvatarURL || "",
         pointValue: cert.pointValue,
         studentName: userData.fullName ?? "",
         universityName: userData.universityName ?? "",
@@ -218,6 +262,7 @@ export default function CertificatesPage() {
                 onShare={handleShare}
                 alreadyShared={sharedIds.has(cert.certificateId)}
                 sharing={sharingId === cert.certificateId}
+                currentTime={currentTime}
               />
             ))}
           </div>
@@ -250,17 +295,21 @@ function CertificateCard({
   onShare,
   alreadyShared,
   sharing,
+  currentTime,
 }: {
   cert: Certificate;
   onDownload: (id: string, title: string) => void;
   onShare: (cert: Certificate) => void;
   alreadyShared: boolean;
   sharing: boolean;
+  currentTime: number | null;
 }) {
   const issuedDate = new Date(cert.issuedAt);
-  const daysSince = (Date.now() - issuedDate.getTime()) / (1000 * 60 * 60 * 24);
-  const canShare = daysSince <= 3;
-  const expired = daysSince > 3;
+  const daysSince =
+    currentTime === null
+      ? 0
+      : (currentTime - issuedDate.getTime()) / (1000 * 60 * 60 * 24);
+  const expired = currentTime !== null && daysSince > 3;
 
   return (
     <div style={cardOuter}>

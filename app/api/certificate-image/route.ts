@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
+import { resolveCertificateOrganizerName } from "@/lib/serverProfiles";
+import fs from "fs";
+import path from "path";
 
 /* ── GET /api/certificate-image?certificateId=xxx ─────────────────────────── */
 /* Returns an SVG image that looks exactly like the PDF certificate.          */
@@ -32,7 +35,7 @@ export async function GET(req: NextRequest) {
     const studentName: string = cert.studentName ?? "";
     const universityName: string = cert.universityName ?? "";
     const eventTitle: string = cert.eventTitle ?? "";
-    const organizerName: string = cert.organizerName ?? "";
+    const organizerName = await resolveCertificateOrganizerName(cert);
     const eventDate: string = cert.eventDate ?? "";
     const pointValue: number = cert.pointValue ?? 0;
     const issuedAt: string = cert.issuedAt ?? "";
@@ -55,8 +58,6 @@ export async function GET(req: NextRequest) {
 
     let logoBase64: string | null = null;
     try {
-      const fs = require("fs");
-      const path = require("path");
       const logoPath = path.join(process.cwd(), "public", "logo_2.png");
       const logoBytes = fs.readFileSync(logoPath);
       logoBase64 = `data:image/png;base64,${logoBytes.toString("base64")}`;
@@ -170,13 +171,15 @@ export async function GET(req: NextRequest) {
       status: 200,
       headers: {
         "Content-Type": "image/svg+xml",
-        "Cache-Control": "public, max-age=31536000, immutable",
+        "Cache-Control": "no-store",
       },
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("certificate-image error:", err);
+    const message =
+      err instanceof Error ? err.message : "Failed to generate certificate image.";
     return NextResponse.json(
-      { error: err.message || "Failed to generate certificate image." },
+      { error: message },
       { status: 500 }
     );
   }

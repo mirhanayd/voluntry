@@ -9,6 +9,11 @@ import {
   addDoc,
 } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
+import {
+  asString,
+  getOrganizerDisplayName,
+  isOrganizerNamePlaceholder,
+} from "@/lib/profileNames";
 
 /**
  * Award points to a user via a Firestore transaction.
@@ -71,6 +76,17 @@ export async function generateCertificate(
     throw new Error(`Event ${eventId} not found`);
   }
   const eventData = eventSnap.data();
+  const organizerId = asString(eventData.organizerId);
+  const organizerSnap = organizerId
+    ? await getDoc(doc(db, "users", organizerId))
+    : null;
+  const organizerData = organizerSnap?.exists() ? organizerSnap.data() : null;
+  const eventOrganizerName = asString(eventData.organizerName);
+  const organizerName = isOrganizerNamePlaceholder(eventOrganizerName)
+    ? getOrganizerDisplayName(organizerData, "Organization")
+    : eventOrganizerName;
+  const organizerAvatarURL =
+    asString(eventData.organizerAvatarURL) || asString(organizerData?.avatarURL);
 
   // Read user document
   const userSnap = await getDoc(doc(db, "users", uid));
@@ -85,7 +101,9 @@ export async function generateCertificate(
     eventId,
     eventTitle: eventData.title ?? "",
     eventDate: eventData.date ?? "",
-    organizerName: eventData.organizerName ?? "",
+    organizerName,
+    organizerId,
+    organizerAvatarURL,
     pointValue: eventData.pointValue ?? 0,
     studentName: userData.fullName ?? "",
     universityName: userData.universityName ?? "",
@@ -106,7 +124,9 @@ export async function generateCertificate(
     eventId,
     eventTitle: eventData.title ?? "",
     eventDate: eventData.date ?? "",
-    organizerName: eventData.organizerName ?? "",
+    organizerName,
+    organizerId,
+    organizerAvatarURL,
     pointValue: eventData.pointValue ?? 0,
     studentName: userData.fullName ?? "",
     universityName: userData.universityName ?? "",
@@ -124,4 +144,3 @@ export async function generateCertificate(
 
   return certRef.id;
 }
-

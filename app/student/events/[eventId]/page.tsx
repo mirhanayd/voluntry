@@ -34,7 +34,7 @@ interface EventData {
   galleryURLs: string[];
 }
 
-type ApplyState = "can_apply" | "already_applied" | "event_full" | "guest";
+type ApplyState = "can_apply" | "already_applied" | "event_full";
 
 /* ── Date formatter ──────────────────────────────────────────────────────────── */
 
@@ -72,7 +72,7 @@ export default function EventDetailPage() {
   const router = useRouter();
   const eventId = params.eventId as string;
 
-  const { user, loading: authLoading, isGuest } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { showToast } = useToast();
 
   const [event, setEvent] = useState<EventData | null>(null);
@@ -125,10 +125,7 @@ export default function EventDetailPage() {
   useEffect(() => {
     if (authLoading || !user || !event) return;
 
-    if (isGuest) {
-      setApplyState("guest");
-      return;
-    }
+
 
     async function checkParticipation() {
       try {
@@ -153,17 +150,14 @@ export default function EventDetailPage() {
 
     checkParticipation();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, user, event, isGuest]);
+  }, [authLoading, user, event]);
 
   /* ── Apply handler ─────────────────────────────────────────────────────────── */
 
   const handleApply = async () => {
     if (!user || !event || applying) return;
 
-    if (isGuest) {
-      showToast("Guest users can view events but cannot apply.", "info");
-      return;
-    }
+
 
     setApplying(true);
     try {
@@ -354,11 +348,7 @@ export default function EventDetailPage() {
                   Event is Full
                 </button>
               )}
-              {applyState === "guest" && (
-                <button disabled style={btnGuest}>
-                  Guest Mode - View Only
-                </button>
-              )}
+
               {applyState === "can_apply" && (
                 <button
                   style={{
@@ -646,13 +636,7 @@ const btnFull: React.CSSProperties = {
   cursor: "default",
 };
 
-const btnGuest: React.CSSProperties = {
-  ...btnBase,
-  background: "#f9fafb",
-  color: "#6b7280",
-  border: "1px solid #d1d5db",
-  cursor: "default",
-};
+
 
 const spinnerStyle: React.CSSProperties = {
   width: 14,

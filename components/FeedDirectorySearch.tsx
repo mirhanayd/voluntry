@@ -10,7 +10,6 @@ import {
   type DocumentData,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { useAuth } from "@/hooks/useAuth";
 
 type DirectoryRole = "student" | "organizer";
 
@@ -50,7 +49,6 @@ function buildDirectoryEntry(id: string, data: DocumentData): DirectoryEntry | n
   const status = asString(data.status);
 
   if (
-    data.isGuest === true ||
     status !== "approved" ||
     (role !== "student" && role !== "organizer")
   ) {
@@ -94,7 +92,6 @@ function buildDirectoryEntry(id: string, data: DocumentData): DirectoryEntry | n
 
 export default function FeedDirectorySearch() {
   const router = useRouter();
-  const { user } = useAuth();
   const [entries, setEntries] = useState<DirectoryEntry[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [open, setOpen] = useState(false);
@@ -164,7 +161,7 @@ export default function FeedDirectorySearch() {
   function openProfile(entry: DirectoryEntry) {
     setOpen(false);
     setSearchTerm("");
-    router.push(entry.id === user?.uid ? "/student/profile" : `/student/profile/${entry.id}`);
+    router.push(`/profile/${encodeURIComponent(entry.id)}`);
   }
 
   return (

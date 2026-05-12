@@ -55,7 +55,7 @@ function formatDate(value: string) {
 }
 
 export default function StudentProfilePage() {
-  const { user, loading: authLoading, isGuest } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { showToast } = useToast();
   const router = useRouter();
 
@@ -67,14 +67,10 @@ export default function StudentProfilePage() {
   const [myPosts, setMyPosts] = useState<FeedPost[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!authLoading && isGuest) {
-      router.replace("/student/feed");
-    }
-  }, [authLoading, isGuest, router]);
+
 
   useEffect(() => {
-    if (authLoading || isGuest) return;
+    if (authLoading) return;
 
     if (!user) {
       setLoading(false);
@@ -208,7 +204,7 @@ export default function StudentProfilePage() {
     return () => {
       active = false;
     };
-  }, [authLoading, isGuest, showToast, user]);
+  }, [authLoading, showToast, user]);
 
   async function handleAvatarUpload(downloadURL: string) {
     if (!user) return;

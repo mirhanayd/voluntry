@@ -49,7 +49,7 @@ function generateCouponCode(userId: string, rewardId: string, timestamp: string)
 }
 
 export default function RewardsPage() {
-  const { user, loading: authLoading, isGuest } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [points, setPoints] = useState<number>(0);
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [myCoupons, setMyCoupons] = useState<Redemption[]>([]);
@@ -112,10 +112,7 @@ export default function RewardsPage() {
   const handleRedeem = async (reward: Reward) => {
     if (!user) return;
 
-    if (isGuest) {
-      showToast("Guest users can browse rewards but cannot redeem them.", "info");
-      return;
-    }
+
 
     const confirmed = await confirm({
       title: "Redeem Reward",
@@ -392,10 +389,7 @@ export default function RewardsPage() {
                   let btnLabel = "Redeem";
                   let btnStyle = redeemBtnStyle;
                   
-                  if (isGuest) {
-                    btnLabel = "Guest Mode";
-                    btnStyle = disabledBtnStyle;
-                  } else if (isOutOfStock) {
+                  if (isOutOfStock) {
                     btnLabel = "Out of Stock";
                     btnStyle = disabledBtnStyle;
                   } else if (notEnoughPoints) {
@@ -418,7 +412,7 @@ export default function RewardsPage() {
                           <span style={costBadgeStyle}>⭐ {reward.pointCost} pts</span>
                           <button 
                             style={isRedeeming ? { ...btnStyle, opacity: 0.7 } : btnStyle}
-                            disabled={isGuest || isOutOfStock || notEnoughPoints || anyRedeeming}
+                            disabled={isOutOfStock || notEnoughPoints || anyRedeeming}
                             onClick={() => handleRedeem(reward)}
                           >
                             {isRedeeming ? (

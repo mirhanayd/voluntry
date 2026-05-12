@@ -263,34 +263,7 @@
   transform: none;
 }
 
-.guestButton {
-  margin-top: 12px;
-  padding: 12px;
-  background-color: #ffffff;
-  color: #246344;
-  font-size: 0.95rem;
-  font-weight: 600;
-  border: 1.5px solid #246344;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background-color 0.2s, color 0.2s, transform 0.15s;
-  width: 100%;
-}
 
-.guestButton:hover {
-  background-color: #f0faf5;
-  transform: translateY(-1px);
-}
-
-.guestButton:active {
-  transform: translateY(0);
-}
-
-.guestButton:disabled {
-  opacity: 0.65;
-  cursor: not-allowed;
-  transform: none;
-}
 
 /* forgot password row */
 .forgotRow {

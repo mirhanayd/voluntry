@@ -12,6 +12,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import FeedCard, { type FeedPost } from "@/components/FeedCard";
+import { hydrateFeedPosts } from "@/lib/feedHydration";
 
 type PublicRole = "student" | "organizer";
 
@@ -34,6 +35,7 @@ interface PublicEvent {
   date: string;
   location: string;
   pointValue: number;
+  status: string;
 }
 
 type PublicFeedPost = FeedPost & { isPublic?: boolean };
@@ -140,12 +142,11 @@ export default function PublicStudentProfilePage() {
 
           if (!active) return;
 
-          setPosts(
-            feedSnap.docs
-              .map((item) => ({ id: item.id, ...item.data() } as PublicFeedPost))
-              .filter((post) => post.isPublic === true)
-              .sort((a, b) => timeValue(b.createdAt) - timeValue(a.createdAt))
-          );
+          const publicPosts = feedSnap.docs
+            .map((item) => ({ id: item.id, ...item.data() } as PublicFeedPost))
+            .filter((post) => post.isPublic === true)
+            .sort((a, b) => timeValue(b.createdAt) - timeValue(a.createdAt));
+          setPosts(await hydrateFeedPosts(publicPosts));
           setEvents([]);
           return;
         }
