@@ -1,1 +1,1 @@
-Refactor: rewards system and clean up unused UI components
+feat: implement dynamic public profiles and server/client profile utilities

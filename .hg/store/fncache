@@ -149,3 +149,9 @@ data/.next-dev.stderr.log.i
 data/.next-dev.stdout.log.i
 data/components/FeedDirectorySearch.tsx.i
 data/app/student/profile/[userId]/page.tsx.i
+data/lib/feedHydration.ts.i
+data/app/profile/[userId]/page.tsx.i
+data/lib/clientProfiles.ts.i
+data/scripts/fix-reward-images.mjs.i
+data/lib/profileNames.ts.i
+data/lib/serverProfiles.ts.i
