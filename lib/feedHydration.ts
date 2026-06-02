@@ -42,17 +42,20 @@ export async function hydrateFeedPosts(posts: FeedPost[]): Promise<FeedPost[]> {
       const type = next.type || "achievement";
       const studentId = asString(next.userId);
 
+      // Always fetch fresh user data for student posts so that avatar
+      // and name stay up-to-date even after the user changes their profile.
       if (
         studentId &&
-        (type === "achievement" || type === "certificate_share") &&
-        (!asString(next.studentName) || !asString(next.avatarURL))
+        (type === "achievement" || type === "certificate_share")
       ) {
         const studentData = await readCached("users", studentId, cache);
         if (studentData) {
           next.studentName =
             asString(next.studentName) || getStudentDisplayName(studentData, "");
+          // Always prefer the live profile avatar over the snapshot stored in
+          // the feed-post document so profile-picture changes propagate.
           next.avatarURL =
-            asString(next.avatarURL) || asString(studentData.avatarURL);
+            asString(studentData.avatarURL) || asString(next.avatarURL);
           next.universityName =
             asString(next.universityName) || asString(studentData.universityName);
           next.departmentName =
@@ -66,47 +69,54 @@ export async function hydrateFeedPosts(posts: FeedPost[]): Promise<FeedPost[]> {
           ? await readCached("certificates", certificateId, cache)
           : null;
       const eventId = asString(next.eventId) || asString(certificateData?.eventId);
-      const needsOrganizer =
-        eventId ||
+
+      // Always attempt to resolve the organizer so the avatar stays fresh.
+      const organizerId =
         asString(next.organizerId) ||
-        isOrganizerNamePlaceholder(next.organizerName) ||
-        !asString(next.organizerAvatarURL);
+        asString(certificateData?.organizerId);
 
-      if (needsOrganizer) {
-        const eventData = eventId
-          ? await readCached("events", eventId, cache)
-          : null;
-        const organizerId =
-          asString(next.organizerId) ||
-          asString(certificateData?.organizerId) ||
-          asString(eventData?.organizerId);
-        const organizerData = organizerId
-          ? await readCached("users", organizerId, cache)
-          : null;
+      const eventData = eventId
+        ? await readCached("events", eventId, cache)
+        : null;
 
-        const postName = asString(next.organizerName);
-        const certificateName = asString(certificateData?.organizerName);
-        const eventName = asString(eventData?.organizerName);
-        const profileName = organizerData
-          ? getOrganizerDisplayName(organizerData, "")
-          : "";
+      const resolvedOrganizerId =
+        organizerId ||
+        asString(eventData?.organizerId);
 
-        next.organizerName = isOrganizerNamePlaceholder(postName)
-          ? isOrganizerNamePlaceholder(certificateName)
-            ? isOrganizerNamePlaceholder(eventName)
-              ? profileName || "Organization"
-              : eventName
-            : certificateName
-          : postName;
-        next.eventId = eventId || asString(next.eventId) || undefined;
-        next.organizerId = organizerId || asString(next.organizerId) || undefined;
-        next.organizerAvatarURL =
-          asString(next.organizerAvatarURL) ||
-          asString(certificateData?.organizerAvatarURL) ||
-          asString(eventData?.organizerAvatarURL) ||
-          asString(organizerData?.avatarURL) ||
-          undefined;
+      const organizerData = resolvedOrganizerId
+        ? await readCached("users", resolvedOrganizerId, cache)
+        : null;
+
+      // Resolve organizer name
+      const postName = asString(next.organizerName);
+      const certificateName = asString(certificateData?.organizerName);
+      const eventName = asString(eventData?.organizerName);
+      const profileName = organizerData
+        ? getOrganizerDisplayName(organizerData, "")
+        : "";
+
+      if (
+        isOrganizerNamePlaceholder(postName) ||
+        !postName
+      ) {
+        next.organizerName = isOrganizerNamePlaceholder(certificateName)
+          ? isOrganizerNamePlaceholder(eventName)
+            ? profileName || "Organization"
+            : eventName
+          : certificateName;
       }
+
+      next.eventId = eventId || asString(next.eventId) || undefined;
+      next.organizerId = resolvedOrganizerId || asString(next.organizerId) || undefined;
+
+      // Always prefer the live organizer profile avatar so profile-picture
+      // changes propagate to feed posts.
+      next.organizerAvatarURL =
+        asString(organizerData?.avatarURL) ||
+        asString(next.organizerAvatarURL) ||
+        asString(certificateData?.organizerAvatarURL) ||
+        asString(eventData?.organizerAvatarURL) ||
+        undefined;
 
       return next;
     })
