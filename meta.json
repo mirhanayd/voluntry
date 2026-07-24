@@ -1,0 +1,24 @@
+{
+  "title": "Voluntry",
+  "slug": "voluntry",
+  "year": "2026",
+  "status": "Completed",
+  "featured": true,
+  "role": "Full-stack Developer",
+  "shortDescription": "Voluntry is a web platform that connects students with volunteer events and helps organizers manage applications, participants, feedback, points, rewards, and certificates.",
+  "technologies": [
+    "TypeScript",
+    "Next.js",
+    "Node.js",
+    "MySQL"
+  ],
+  "githubUrl": "https://github.com/mirhanayd/voluntry",
+  "liveUrl": "https://voluntry.app",
+  "coverImage": "logo.png",
+  "highlights": [
+    "Separate student, organizer, and admin workspaces with role-based routing.",
+    "Volunteer event discovery, applications, participant tracking, and feedback management.",
+    "Firebase Authentication, Firestore, Storage, and Admin SDK integration.",
+    "QR-based certificate generation and verification for completed activities."
+  ]
+}
