@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useEffect, useState } from "react";
 import { FirebaseError } from "firebase/app";
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import styles from "./login.module.css";
@@ -24,8 +24,7 @@ function ArrowIcon() {
 
 function LoginForm() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const reason = searchParams.get("reason");
+  const [reason, setReason] = useState<string | null>(null);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,6 +33,10 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [showPendingPopup, setShowPendingPopup] = useState(false);
   const [isShaking, setIsShaking] = useState(false);
+
+  useEffect(() => {
+    setReason(new URLSearchParams(window.location.search).get("reason"));
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,16 +131,19 @@ function LoginForm() {
 
         <div className={styles.heroGrid} id="top">
           <div className={styles.heroCopy}>
-
-
+            <span className={styles.eyebrow}>
+              <span className={styles.eyebrowDot} />
+              Northern Cyprus volunteer community
+            </span>
             <h1>
-              Turn your time into
-              <span> meaningful impact.</span>
+              Volunteer in Northern Cyprus
+              <span> with VolunTRY.</span>
             </h1>
 
             <p className={styles.heroText}>
-              Discover trusted volunteering opportunities across Northern Cyprus,
-              join causes you care about, and keep every contribution in one place.
+              Discover trusted volunteer opportunities across Northern Cyprus and
+              Cyprus, join causes you care about, and keep every contribution in
+              one place.
             </p>
 
             <div className={styles.heroActions}>
@@ -310,9 +316,11 @@ function LoginForm() {
 
       <section className={styles.howSection} id="how-it-works">
         <div className={styles.sectionHeading}>
-          <span className={styles.sectionKicker}>YOUR VOLUNTEER JOURNEY</span>
-          <h2>From good intentions to real action.</h2>
-          <p>VolunTRY makes every step simple, visible and rewarding.</p>
+          <span className={styles.sectionKicker}>VOLUNTEERING IN CYPRUS</span>
+          <h2>Find your next volunteer opportunity in Northern Cyprus.</h2>
+          <p>
+            VolunTRY makes Cyprus volunteering simple, visible and rewarding.
+          </p>
         </div>
 
         <div className={styles.stepsGrid}>
@@ -327,7 +335,10 @@ function LoginForm() {
               </span>
             </div>
             <h3>Discover your cause</h3>
-            <p>Explore opportunities by date, location and field of interest.</p>
+            <p>
+              Explore Northern Cyprus volunteer opportunities by date, location
+              and field of interest.
+            </p>
           </article>
 
           <article className={`${styles.stepCard} ${styles.featuredStep}`}>
@@ -419,11 +430,13 @@ function LoginForm() {
         </div>
 
         <div className={styles.valueCopy}>
-          <span className={styles.sectionKicker}>MORE THAN AN EVENT LIST</span>
-          <h2>Your contribution deserves to be seen.</h2>
+          <span className={styles.sectionKicker}>KIBRIS GÖNÜLLÜ TOPLULUĞU</span>
+          <h2>Kıbrıs&apos;ta gönüllülük, tek bir platformda.</h2>
           <p className={styles.valueLead}>
-            VolunTRY turns each volunteering experience into a clear record of
-            growth you can revisit, verify and share.
+            VolunTRY ile Kuzey Kıbrıs gönüllülük etkinliklerini keşfedin,
+            topluma katkı sağlayın ve katılımınızı doğrulanabilir
+            sertifikalarla kaydedin. Kıbrıs gönüllü topluluğunu öğrenciler
+            ve organizasyonlarla buluşturuyoruz.
           </p>
 
           <div className={styles.valueList}>
@@ -453,10 +466,10 @@ function LoginForm() {
         <div className={styles.organizerInner}>
           <div className={styles.organizerCopy}>
             <span className={styles.organizerKicker}>FOR ORGANIZATIONS</span>
-            <h2>Bring the right volunteers to the right cause.</h2>
+            <h2>Reach volunteers across Northern Cyprus.</h2>
             <p>
-              Create opportunities, manage applications, follow attendance and
-              gather feedback through one focused workspace.
+              Publish volunteer opportunities in Cyprus, manage applications,
+              follow attendance and gather feedback through one focused workspace.
             </p>
             <Link href="/register/organization" className={styles.lightCta}>
               Register your organization
@@ -525,9 +538,5 @@ function LoginForm() {
 }
 
 export default function LoginPage() {
-  return (
-    <Suspense>
-      <LoginForm />
-    </Suspense>
-  );
+  return <LoginForm />;
 }

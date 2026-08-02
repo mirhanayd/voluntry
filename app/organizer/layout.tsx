@@ -1,5 +1,10 @@
+import type { Metadata } from "next";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import OrganizerHeader from "@/components/OrganizerHeader";
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 export default function OrganizerLayout({ children }: { children: React.ReactNode }) {
   return (

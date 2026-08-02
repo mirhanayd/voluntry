@@ -1,5 +1,10 @@
+import type { Metadata } from "next";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import StudentHeader from "@/components/StudentHeader";
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 export default function StudentLayout({ children }: { children: React.ReactNode }) {
   return (

@@ -1,65 +1,49 @@
-"use client";
+import type { Metadata } from "next";
+import HomeAuthRedirect from "@/components/HomeAuthRedirect";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/hooks/useAuth";
+export const metadata: Metadata = {
+  alternates: {
+    canonical: "/",
+  },
+};
+
+const structuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://voluntry.app/#organization",
+      name: "VolunTRY",
+      url: "https://voluntry.app/",
+      logo: "https://voluntry.app/logo_3.png",
+      description:
+        "VolunTRY connects volunteers with trusted volunteering opportunities across Northern Cyprus.",
+      areaServed: [
+        { "@type": "Place", name: "Northern Cyprus" },
+        { "@type": "Country", name: "Cyprus" },
+      ],
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://voluntry.app/#website",
+      url: "https://voluntry.app/",
+      name: "VolunTRY",
+      description:
+        "Volunteer opportunities and volunteering events in Northern Cyprus.",
+      publisher: { "@id": "https://voluntry.app/#organization" },
+      inLanguage: ["en", "tr"],
+    },
+  ],
+};
 
 export default function HomePage() {
-  const { user, role, loading } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (loading) return;
-
-    if (!user) {
-      router.replace("/login");
-      return;
-    }
-
-    switch (role) {
-      case "admin":
-        router.replace("/admin/dashboard");
-        break;
-      case "organizer":
-        router.replace("/organizer/feed");
-        break;
-      case "student":
-        router.replace("/student/feed");
-        break;
-      default:
-        router.replace("/login");
-    }
-  }, [user, role, loading, router]);
-
-  // Loading spinner while auth state resolves
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        minHeight: "100vh",
-        background: "#f9fafb",
-        fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
-      }}
-    >
-      <div style={{ textAlign: "center" }}>
-        <div
-          style={{
-            width: 40,
-            height: 40,
-            border: "4px solid #e5e7eb",
-            borderTop: "4px solid #246344",
-            borderRadius: "50%",
-            animation: "spin 0.8s linear infinite",
-            margin: "0 auto 16px",
-          }}
-        />
-        <p style={{ color: "#6b7280", fontSize: "0.9rem", margin: 0 }}>
-          Loading...
-        </p>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    </div>
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
+      <HomeAuthRedirect />
+    </>
   );
 }
